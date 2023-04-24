@@ -1,0 +1,39 @@
+{
+  "name": "viper-contracts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js",
+    "chain": "ganache-cli -m 'candy maple cake sugar pudding cream honey rich smooth crumble sweet treat'"
+  },
+  "author": "okwme",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "*",
+    "@nomiclabs/hardhat-etherscan": "^3.1.0",
+    "@nomiclabs/hardhat-ganache": "*",
+    "@nomiclabs/hardhat-waffle": "*",
+    "chai": "*",
+    "ethereum-waffle": "*",
+    "ethers": "*",
+    "hardhat": "*",
+    "hardhat-gas-reporter": "*",
+    "prettier": "2.7.1"
+  },
+  "dependencies": {
+    "@eth-optimism/plugins": "*",
+    "@openzeppelin/contracts": "^4.6.0",
+    "@rari-capital/solmate": "*",
+    "ba64": "*",
+    "base64-sol": "*",
+    "dotenv": "^16.0.1",
+    "eslint": "^8.26.0",
+    "hardhat-contract-sizer": "*",
+    "npm-check-updates": "*",
+    "solady": "^0.0.54",
+    "solc": "^0.8.15",
+    "solidity-bytes-utils": "*"
+  }
+}

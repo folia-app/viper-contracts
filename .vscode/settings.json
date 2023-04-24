@@ -1,0 +1,6 @@
+{
+  "svg.preview.background": "custom",
+  "[svg]": {
+    "editor.formatOnSave": false
+  }
+}
