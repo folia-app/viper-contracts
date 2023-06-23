@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { deployContracts, correctPrice } = require("../scripts/utils.js");
 
-describe("NFT Tests", function () {
+describe("Viper Tests", function () {
   this.timeout(50000000);
 
   it("has all the correct interfaces", async () => {
@@ -47,9 +47,19 @@ describe("NFT Tests", function () {
     expect(newRoyaltyInfo[1]).to.equal(newRoyaltyAmount);
   })
 
+  it("can only be transferred by the non-owner", async () => {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.mint({ value: correctPrice });
+    await expect(viper.connect(addr1).transferFrom(owner.address, addr1.address, 1))
+      .to.be.revertedWith("ERC721: caller is not token owner or approved");
+    // await expect(viper.connect(addr1).safeTransferFrom(owner.address, addr1.address, 1))
+    //   .to.be.revertedWith("ERC721: caller is not token owner or approved");
+  })
+
   it("validate second mint event", async function () {
     const [owner, addr1] = await ethers.getSigners();
-    const { viper, controller } = await deployContracts(2);
+    const { viper, controller } = await deployContracts();
     await expect(controller.mint({ value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, owner.address, 1);
@@ -57,4 +67,15 @@ describe("NFT Tests", function () {
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, addr1.address, 2);
   });
+
+
+  it("poisons someone using transferFrom", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.mint({ value: correctPrice });
+    await controller.connect(addr1).mint({ value: correctPrice });
+    await viper.connect(addr1).transferFrom(addr1.address, addr2.address, 2);
+    await expect(viper.connect(addr2).transferFrom(addr2.address, addr1.address, 2))
+      .to.be.revertedWith("ERC721: caller is not token owner or approved");
+  })
 });

@@ -2,7 +2,7 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const fs = require("fs");
 const { readData, getPathABI, deployContracts, decodeUri, correctPrice, maxSupply } = require("../scripts/utils.js");
-const { optimize } = require("svgo");
+// const { optimize } = require("svgo");
 
 
 describe("Controller Tests", function () {
@@ -10,7 +10,7 @@ describe("Controller Tests", function () {
 
   it("emits 'EthMoved' events when eth is moved", async () => {
     const [owner, addr1] = await ethers.getSigners();
-    const { viper, controller } = await deployContracts(1);
+    const { viper, controller } = await deployContracts();
 
     // set splitter to controller address which cannot recive eth
     await controller.setSplitter(controller.address)
@@ -19,10 +19,8 @@ describe("Controller Tests", function () {
     // mint will succeed but eth will be trapped in controller
     await controller.mint({ value: correctPrice })
 
-
     // first try reverting with the wrong account
     await expect(controller.connect(addr1).recoverUnsuccessfulMintPayment(addr1.address)).to.be.revertedWith("Ownable: caller is not the owner");
-
 
     // now try with correct account
     const balanceOfAddr1Before = await ethers.provider.getBalance(addr1.address);
@@ -40,9 +38,9 @@ describe("Controller Tests", function () {
   it("revert:Viper not set", async function () {
     const [owner, splitter] = await hre.ethers.getSigners();
     const { controller } = await deployContracts();
-    await controller.setViper(ethers.constants.AddressZero)
+    await controller.setNFT(ethers.constants.AddressZero)
     await controller.setPause(false);
-    await expect(controller.mint({ value: correctPrice })).to.be.revertedWith("NO VIPER");
+    await expect(controller.mint({ value: correctPrice })).to.be.revertedWith("NO NFT");
   });
 
   it("revert:Splitter not set", async function () {
@@ -55,7 +53,7 @@ describe("Controller Tests", function () {
 
   it("token ID is correctly correlated", async function () {
     const [owner] = await ethers.getSigners();
-    const { viper, controller } = await deployContracts(1);
+    const { viper, controller } = await deployContracts();
     await controller.setPause(false);
     await controller.mint({ value: correctPrice });
     const tokenID = await viper.tokenOfOwnerByIndex(owner.address, 0);
@@ -78,7 +76,7 @@ describe("Controller Tests", function () {
     await expect(viper.mint(owner.address)).to.be.revertedWith("NOT CONTROLLER");
   });
 
-  it("revert:controller out", async function () {
+  it("revert:controller when minting too many", async function () {
     const { controller } = await deployContracts();
     for (var mintcounter = 0; mintcounter < maxSupply; mintcounter++) {
       controller.mint({ value: correctPrice });
@@ -86,7 +84,7 @@ describe("Controller Tests", function () {
     await expect(controller.mint({ value: correctPrice })).to.be.revertedWith("MAX SUPPLY REACHED");
   });
 
-  it("revert:controller without sending eth", async function () {
+  it("revert:controller failed and successful mint without sending eth", async function () {
     const [owner] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
     await expect(controller.mint()).to.be.revertedWith("WRONG PRICE");
@@ -96,12 +94,23 @@ describe("Controller Tests", function () {
       .withArgs(ethers.constants.AddressZero, owner.address, 1);
   });
 
-  it("controller from admin", async function () {
+  it("controller mint from admin", async function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
     await controller.adminMint(addr1.address);
     expect(await viper.ownerOf(1)).to.equal(addr1.address);
   });
+
+  it("revert:controller mint from admin when uninitialized", async function () {
+    const [owner, addr1, addr2, addr3] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.setNFT(ethers.constants.AddressZero);
+    await expect(controller.adminMint(addr3.address)).to.be.revertedWith("NO NFT");
+    await controller.setNFT(viper.address)
+    await controller.setSplitter(ethers.constants.AddressZero)
+    await expect(controller.adminMint(addr3.address)).to.be.revertedWith("NO SPLIT");
+  })
+
 
   it("revert:controller from admin without admin", async function () {
     const [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();

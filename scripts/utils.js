@@ -83,26 +83,19 @@ const decodeUri = (decodedJson) => {
 
 
 
-const deployContracts = async (skipMetadata = true) => {
+const deployContracts = async () => {
   var networkinfo = await hre.ethers.provider.getNetwork();
   const blocksToWaitBeforeVerify = 0;
 
-  var metadataCount = 0
-  if (typeof skipMetadata !== "boolean") {
-    metadataCount = skipMetadata
-  } else if (!skipMetadata) {
-    metadataCount = maxSupply
-  }
   console.log("Start Deployment:");
   const [owner, splitter] = await hre.ethers.getSigners();
+
   // deploy Controller
   const Controller = await hre.ethers.getContractFactory("Controller");
   const controller = await Controller.deploy(splitter.address, networkinfo["chainId"] == 1 ? { nonce: 453 } : {});
   await controller.deployed();
   var controllerAddress = controller.address;
   console.log("Controller Deployed at " + String(controllerAddress) + ` with splitter ${splitter.address}`);
-
-
 
   // deploy Metadata
   const Metadata = await hre.ethers.getContractFactory("Metadata");
@@ -111,11 +104,6 @@ const deployContracts = async (skipMetadata = true) => {
   var metadataAddress = metadata.address;
   console.log("Metadata Deployed at " + String(metadataAddress));
 
-
-  if (metadataCount > 0) {
-    await writeMetadata(metadata, metadataCount);
-  }
-
   // deploy Viper
   const Viper = await ethers.getContractFactory("Viper");
   const viper = await Viper.deploy(controllerAddress, metadataAddress);
@@ -123,13 +111,23 @@ const deployContracts = async (skipMetadata = true) => {
   var viperAddress = viper.address;
   console.log("Viper Deployed at " + String(viperAddress) + ` with controller ${controllerAddress} and metadata ${metadataAddress}`);
 
-  // configure Controller
-  await controller.setViper(viperAddress);
-  console.log(`Controller configured with viper ${viperAddress}`)
+  // deploy BittenByViper
+  const BittenByViper = await ethers.getContractFactory("BittenByViper")
+  const bittenByViper = await BittenByViper.deploy(controllerAddress, metadataAddress)
+  await bittenByViper.deployed()
+  const bittenByViperAddress = bittenByViper.address
+  console.log(`BittenByViper deployed at ${bittenByViperAddress} with viperAddress ${viperAddress} and metadataAddress ${metadataAddress}`)
 
-  // configure Metadata
-  await metadata.setViper(viperAddress);
-  console.log(`Metadata configured with viper ${viperAddress}`)
+  // configure Viper
+  // TODO: remove this once it's been decided
+  // await viper.setBittenByViper(bittenByViperAddress);
+  // console.log(`Viper configured with bittenByViperAddress ${bittenByViperAddress}`)
+
+  // configure Controller
+  await controller.setNFT(viperAddress);
+  console.log(`Controller configured with viper ${viperAddress}`)
+  await controller.setBittenByViper(bittenByViperAddress);
+  console.log(`Controller configured with bittenByViperAddress ${bittenByViperAddress}`)
 
 
   // verify contract if network ID is goerli
@@ -174,27 +172,32 @@ const deployContracts = async (skipMetadata = true) => {
       console.log({ e })
     }
 
+
+    // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
+    await controller.deployTransaction.wait(blocksToWaitBeforeVerify);
+    console.log("Verifying BittenByViper Contract");
+    try {
+      await hre.run("verify:verify", {
+        address: bittenByViperAddress,
+        constructorArguments: [viperAddress, metadataAddress],
+      });
+    } catch (e) {
+      console.log({ e })
+    }
+
   }
 
-  return { viper, controller, metadata };
-};
-
-const writeMetadata = async (metadata, count) => {
-  if (!metadata) {
-    console.log("No metadata contract found. Initializing...")
-    metadata = await initMetadata()
-  }
+  return { viper, controller, metadata, bittenByViper };
 };
 
 module.exports = {
   decodeUri,
   initContracts,
   deployContracts,
-  getathABI,
+  getPathABI,
   getPathAddress,
   readData,
   testJson,
   correctPrice,
-  maxSupply,
-  writeMetadata
+  maxSupply
 };
