@@ -4,8 +4,8 @@ const hre = require("hardhat");
 const path = require("node:path");
 const fs = require("fs").promises;
 
-const correctPrice = ethers.utils.parseEther("0.111111111111111111");
-const maxSupply = 545;
+const correctPrice = ethers.utils.parseEther("0.055555555555555555");
+const maxSupply = 468;
 
 const testJson = (tJson) => {
   try {
@@ -129,6 +129,15 @@ const deployContracts = async () => {
   await controller.setBittenByViper(bittenByViperAddress);
   console.log(`Controller configured with bittenByViperAddress ${bittenByViperAddress}`)
 
+  let reEntry
+  // deploy reEntry contract for testing
+  if (networkinfo["chainId"] == 12345) {
+    const ReEntry = await ethers.getContractFactory("ReEntry");
+    reEntry = await ReEntry.deploy(controllerAddress);
+    await reEntry.deployed();
+    var reEntryAddress = reEntry.address;
+  }
+
 
   // verify contract if network ID is goerli
   if (networkinfo["chainId"] == 5 || networkinfo["chainId"] == 1) {
@@ -187,7 +196,7 @@ const deployContracts = async () => {
 
   }
 
-  return { viper, controller, metadata, bittenByViper };
+  return { viper, controller, metadata, bittenByViper, reEntry };
 };
 
 module.exports = {

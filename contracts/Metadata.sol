@@ -9,10 +9,11 @@ import "./Viper.sol";
 /// @title Viper Metadata
 /// @notice https://viper.folia.app
 /// @author @0xJ3lly
-/// @dev 
+/// @dev
 
 contract Metadata is Ownable {
   constructor() {}
+
   string public baseURI = "https://viper.folia.app/v1/metadata/";
 
   function setbaseURI(string memory baseURI_) public onlyOwner {
@@ -22,12 +23,6 @@ contract Metadata is Ownable {
   /// @dev generates the metadata
   /// @param tokenId the tokenId
   function getMetadata(uint256 tokenId) public view returns (string memory) {
-    return 
-    string(
-        abi.encodePacked(
-          baseURI,
-          Strings.toString(tokenId)
-        )
-    );
+    return string(abi.encodePacked(baseURI, Strings.toString(tokenId)));
   }
 }

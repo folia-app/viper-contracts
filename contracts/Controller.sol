@@ -20,11 +20,12 @@ contract Controller is Ownable {
   address public nft;
   address public splitter;
   address public bittenByViper;
-  uint256 public price = 0.111111111111111111 ether;
+  uint256 public price = 0.055555555555555555 ether;
 
-  event EthMoved(address indexed to, bool indexed success, bytes returnData);
+  event EthMoved(address indexed to, bool indexed success, bytes returnData, uint256 amount);
 
   constructor(address payable splitter_) {
+    paused = true;
     splitter = splitter_;
   }
 
@@ -46,10 +47,18 @@ contract Controller is Ownable {
   /// @dev mints NFTs
   function mint() public payable initialized {
     require(!paused, "PAUSED");
-    require(msg.value == price, "WRONG PRICE");
-    (bool sent, bytes memory data) = splitter.call{value: msg.value}("");
-    emit EthMoved(msg.sender, sent, data);
+    require(msg.value >= price, "WRONG PRICE");
+    (bool sent, bytes memory data) = splitter.call{value: price}("");
+    emit EthMoved(msg.sender, sent, data, price);
     iNFT(nft).mint(msg.sender);
+  }
+
+  function mint(uint256 batch) public payable initialized {
+    require(msg.value >= price * batch, "WRONG BATCH PRICE");
+    require(batch == 3 || batch == 5, "CAN'T BATCH MINT BESIDES 3 OR 5");
+    for (uint256 i = 0; i < batch; i++) {
+      mint();
+    }
   }
 
   /// @dev only the owner can set the splitter address
@@ -86,7 +95,8 @@ contract Controller is Ownable {
   // is extra precaution. Also allows recovery if users accidentally send eth
   // straight to the contract.
   function recoverUnsuccessfulMintPayment(address payable _to) public onlyOwner {
-    (bool sent, bytes memory data) = _to.call{value: address(this).balance}("");
-    emit EthMoved(_to, sent, data);
+    uint256 amount = address(this).balance;
+    (bool sent, bytes memory data) = _to.call{value: amount}("");
+    emit EthMoved(_to, sent, data, amount);
   }
 }

@@ -17,8 +17,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
   
       
 By @0xJ3lly
-Presented by Folia.app
-                                    
+Presented by Folia.app                  
 */
 
 /// @title Viper
@@ -47,8 +46,9 @@ contract BittenByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
 
   function poison(address from, address to, uint256 tokenId, uint256 length) public {
     require(msg.sender == viperControllerAddress, "Only Controller can call poison");
-    require(bites[to] == false, "Already bitten by this Viper");
+    require(bites[to] == false, "Already bitten by a Viper");
     bites[to] = true;
+    totalSupply++;
     uint256 newTokenId = getCombinedTokenId(from, tokenId, length);
     emit Transfer(from, to, newTokenId);
   }
@@ -82,14 +82,11 @@ contract BittenByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
     // uint256 blocker is a 9 bit long value
     uint256 blocker = uint256(0x1FF);
     tokenId = (combinedTokenId >> 160) & blocker;
-    // TODO: make sure no return is needed
   }
 
   function extractAddress(uint256 tokenId) public pure returns (address ownerOfToken) {
     uint256 blocker = uint256(uint160(0xFFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF));
     ownerOfToken = address(uint160(tokenId & blocker));
-    // originalTokenId = tokenId >> 160;
-    // return (ownerOfToken, originalTokenId); // TODO: make sure this works without a return
   }
 
   /// @dev overwrites the tokenURI function from ERC721

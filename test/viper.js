@@ -1,9 +1,23 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { deployContracts, correctPrice } = require("../scripts/utils.js");
+const { deployContracts, correctPrice, maxSupply } = require("../scripts/utils.js");
 
 describe("Viper Tests", function () {
   this.timeout(50000000);
+
+  it("has the correct controller and metadata", async () => {
+    const { viper, controller, metadata } = await deployContracts();
+    const controllerAddress = await viper.controller();
+    const metadataAddress = await viper.metadata();
+    expect(controllerAddress).to.equal(controller.address);
+    expect(metadataAddress).to.equal(metadata.address);
+  })
+
+  it("has the correct max supply", async () => {
+    const { viper } = await deployContracts();
+    const maxSupply_ = await viper.MAX_SUPPLY();
+    expect(maxSupply_).to.equal(468);
+  })
 
   it("has all the correct interfaces", async () => {
     const interfaces = [
@@ -26,7 +40,8 @@ describe("Viper Tests", function () {
   it("has the correct royalty info", async () => {
     const [acct1, acct2, acct3] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
-    await controller.mint({ value: correctPrice });
+    await controller.setPause(false)
+    await controller['mint()']({ value: correctPrice });
     const splitter = await controller.splitter();
     const royaltyInfo = await viper.royaltyInfo(1, correctPrice);
 
@@ -47,35 +62,135 @@ describe("Viper Tests", function () {
     expect(newRoyaltyInfo[1]).to.equal(newRoyaltyAmount);
   })
 
-  it("can only be transferred by the non-owner", async () => {
+  it("can only be transferred by the approved non-owner (happy path)", async () => {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper, controller, bittenByViper } = await deployContracts();
+    await controller.setPause(false)
+    await controller['mint()']({ value: correctPrice });
+    const tokenId = await viper.tokenOfOwnerByIndex(owner.address, 0);
+    // first token should be tokenId 1
+    expect(tokenId).to.equal(1);
+
+    // length begins as 0 and saved in array which is 0 indexed so subtract 1
+    const tokenLength = (await viper.lengths(tokenId.sub(1)))
+    expect(tokenLength).to.equal(0);
+
+    // can't transfer a token you don't own or aren't approved for
+    await expect(viper.connect(addr1).transferFrom(owner.address, addr1.address, tokenId))
+      .to.be.revertedWith("ERC721: caller is not token owner or approved");
+
+    // combinedTokenId uses the length after it's been successfully transferred, which will be 1 more than current
+    const combinedTokenId = await bittenByViper.getCombinedTokenId(owner.address, tokenId, tokenLength.add(1));
+    tx = viper.connect(owner).transferFrom(owner.address, addr1.address, tokenId)
+
+    // transfer from doesn't actually transfer
+    // it emits the transfer event on the BittenByViper contract instead
+    // which is how you bite/poison someone
+    await expect(tx)
+      .to.emit(bittenByViper, "Transfer")
+      .withArgs(owner.address, addr1.address, combinedTokenId);
+
+    // length should be 1 now since it grows every time someone is bitten/poisoned
+    const tokenLengthAfterTransfer = await viper.lengths(tokenId.sub(1))
+    expect(tokenLengthAfterTransfer).to.equal(1);
+
+    // viper didn't change owners since only a bite/poison happened
+    const ownerOfToken = await viper.ownerOf(tokenId);
+    expect(ownerOfToken).to.equal(owner.address);
+
+    // approve addr2 (stand in for a marketplace contract) to transfer the token
+    await expect(viper.connect(owner).approve(addr2.address, tokenId))
+      .to.not.be.reverted;
+
+    // when the approved address transfers the token, it should actually be transferred
+    await expect(viper.connect(addr2).transferFrom(owner.address, addr1.address, tokenId))
+      .to.not.be.reverted;
+
+    // recipient is now the owner of the token
+    const newOwnerOfToken = await viper.ownerOf(tokenId);
+    expect(newOwnerOfToken).to.equal(addr1.address);
+  })
+
+  it("uses the same tokenURI as bittenByViper", async () => {
+    const { viper, bittenByViper } = await deployContracts();
+    const tokenURI = await viper.tokenURI(1);
+    const bittenByViperTokenURI = await bittenByViper.tokenURI(1);
+    expect(tokenURI).to.equal(bittenByViperTokenURI);
+  })
+
+  it("can only mint when called from the controller address", async () => {
     const [owner, addr1] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
-    await controller.mint({ value: correctPrice });
-    await expect(viper.connect(addr1).transferFrom(owner.address, addr1.address, 1))
-      .to.be.revertedWith("ERC721: caller is not token owner or approved");
-    // await expect(viper.connect(addr1).safeTransferFrom(owner.address, addr1.address, 1))
-    //   .to.be.revertedWith("ERC721: caller is not token owner or approved");
+
+    await expect(viper.mint(addr1.address))
+      .to.be.revertedWith("NOT CONTROLLER");
+
+    await viper.setController(addr1.address);
+    await controller.setPause(false)
+    await expect(viper.connect(addr1).mint(addr1.address))
+      .to.not.be.reverted;
+
+    const tokenBalance = await viper.balanceOf(addr1.address);
+    expect(tokenBalance).to.equal(1);
+
+    const totalSupply = await viper.totalSupply();
+    expect(totalSupply).to.equal(1);
+
   })
 
   it("validate second mint event", async function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
-    await expect(controller.mint({ value: correctPrice }))
+    await controller.setPause(false)
+    await expect(controller['mint()']({ value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, owner.address, 1);
-    await expect(controller.connect(addr1).mint({ value: correctPrice }))
+    await expect(controller.connect(addr1)['mint()']({ value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, addr1.address, 2);
   });
+
+  it("has the correct max supply", async function () {
+    const { viper } = await deployContracts();
+    const maxSupply_ = await viper.MAX_SUPPLY();
+    expect(maxSupply_).to.equal(maxSupply);
+  })
+
+  it("mints out and throws an error afterwards", async function () {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.setPrice(0)
+    const maxSupply_ = await viper.MAX_SUPPLY();
+    await controller.setPause(false)
+    for (let i = 0; i < maxSupply_; i++) {
+      await controller['mint()']();
+    }
+
+    await expect(controller['mint()']())
+      .to.be.revertedWith("MAX SUPPLY REACHED");
+  })
 
 
   it("poisons someone using transferFrom", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
-    await controller.mint({ value: correctPrice });
-    await controller.connect(addr1).mint({ value: correctPrice });
+    await controller.setPause(false)
+    await controller['mint()']({ value: correctPrice });
+    await controller.connect(addr1)['mint()']({ value: correctPrice });
     await viper.connect(addr1).transferFrom(addr1.address, addr2.address, 2);
     await expect(viper.connect(addr2).transferFrom(addr2.address, addr1.address, 2))
       .to.be.revertedWith("ERC721: caller is not token owner or approved");
+  })
+
+
+  it("can't update onlyOwner functions if not owner", async function () {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await expect(viper.connect(addr1).setController(addr1.address))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+    await expect(viper.connect(addr1).setMetadata(addr1.address))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+    await expect(viper.connect(addr1).setRoyaltyPercentage(addr1.address, 1))
+      .to.be.revertedWith("Ownable: caller is not the owner");
   })
 });

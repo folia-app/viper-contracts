@@ -67,7 +67,7 @@ module.exports = {
   },
   gasReporter: {
     currency: "EUR",
-    gasPrice: 20,
+    gasPrice: 150,
     url: "http://localhost:8545",
     coinmarketcap: "38b60711-0559-45f4-8bda-e72f446c8278",
     enabled: true,
