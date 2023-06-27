@@ -25,7 +25,7 @@ describe("Controller Tests", function () {
       .to.be.revertedWith("Ownable: caller is not the owner");
     await expect(controller.connect(addr1).setSplitter(addr1.address))
       .to.be.revertedWith("Ownable: caller is not the owner");
-    await expect(controller.connect(addr1).setPaused(false))
+    await expect(controller.connect(addr1).setPause(false))
       .to.be.revertedWith("Ownable: caller is not the owner");
     await expect(controller.connect(addr1).setPrice(ethers.utils.parseEther("0.1")))
       .to.be.revertedWith("Ownable: caller is not the owner");
