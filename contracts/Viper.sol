@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 import "./Metadata.sol";
 import "./Controller.sol";
-// import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "erc721a/contracts/extensions/ERC721AQueryable.sol";
 
 /*
 
@@ -26,29 +26,33 @@ Presented by Folia.app
 /// @author @0xJ3lly
 /// @dev standard 721 token and permissions for Minting and Metadata as controlled by external contracts
 
-contract Viper is ERC721Enumerable, Ownable, ERC2981 {
+contract Viper is ERC721AQueryable, Ownable, ERC2981 {
   address public controller;
   address public metadata;
   uint256 public constant MAX_SUPPLY = 468;
   uint256[MAX_SUPPLY] public lengths;
 
-  constructor(address controller_, address metadata_) ERC721("Viper", "VPR") {
+  constructor(address controller_, address metadata_) ERC721A("Viper", "VPR") {
     controller = controller_;
     metadata = metadata_;
     _setDefaultRoyalty(Controller(controller).splitter(), 1000); // 10%
+  }
+
+  function _startTokenId() internal view virtual override(ERC721A) returns (uint256) {
+    return 1;
   }
 
   // @dev overwrites the transferFrom function from ERC721
   // @param from the address of the sender
   // @param to the address of the recipient
   // @param tokenId the id of the NFT
-  function transferFrom(address from, address to, uint256 tokenId) public override(ERC721, IERC721) {
+  function transferFrom(address from, address to, uint256 tokenId) public payable override(ERC721A, IERC721A) {
     address currentOwner = ownerOf(tokenId);
     // if this is a transfer directly from the owner, interpret it as a event
     if (msg.sender == currentOwner) {
-      uint256 length = lengths[tokenId - 1];
+      uint256 length = lengths[tokenId];
       Controller(controller).poison(from, to, tokenId, length + 1); // initial length stored as 0, so add 1
-      lengths[tokenId - 1] = length + 1; // add 1 segment to the viper every time it bites
+      lengths[tokenId] = length + 1; // add 1 segment to the viper every time it bites
     } else {
       // else if this is a mediated transfer, like from a marketplace, interpret it as a real transfer
       super.transferFrom(from, to, tokenId);
@@ -57,17 +61,26 @@ contract Viper is ERC721Enumerable, Ownable, ERC2981 {
 
   /// @dev overwrites the tokenURI function from ERC721
   /// @param id the id of the NFT
-  function tokenURI(uint256 id) public view override(ERC721) returns (string memory) {
+  function tokenURI(uint256 id) public view override(ERC721A, IERC721A) returns (string memory) {
     return Metadata(metadata).getMetadata(id);
+  }
+
+  function mint() public payable {
+    Controller(controller).mint{value: msg.value}(msg.sender, 1);
+  }
+
+  function mint(uint256 quantity) public payable {
+    Controller(controller).mint{value: msg.value}(msg.sender, quantity);
   }
 
   /// @dev mint token
   /// @param recipient the recipient of the NFT
-  function mint(address recipient) public {
+  function controllerMint(address recipient, uint256 quantity) public {
     require(msg.sender == controller, "NOT CONTROLLER");
     uint256 tokenId = totalSupply() + 1;
     require(tokenId <= MAX_SUPPLY, "MAX SUPPLY REACHED");
-    _safeMint(recipient, tokenId);
+    _safeMint(recipient, quantity);
+    // _safeMint(recipient, tokenId);
   }
 
   function setController(address controller_) public onlyOwner {
@@ -87,11 +100,10 @@ contract Viper is ERC721Enumerable, Ownable, ERC2981 {
    */
   function supportsInterface(
     bytes4 interfaceId
-  ) public view virtual override(ERC2981, ERC721Enumerable) returns (bool) {
+  ) public view virtual override(ERC2981, ERC721A, IERC721A) returns (bool) {
     return
       interfaceId == type(IERC721).interfaceId ||
       interfaceId == type(IERC721Metadata).interfaceId ||
-      interfaceId == type(IERC721Enumerable).interfaceId ||
       interfaceId == type(IERC2981).interfaceId ||
       super.supportsInterface(interfaceId);
   }

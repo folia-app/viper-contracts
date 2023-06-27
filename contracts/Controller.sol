@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "./BittenByViper.sol";
+import "./BiteByViper.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface iNFT {
-  function mint(address recipient) external;
+  function controllerMint(address recipient, uint256 quantity) external;
 
   function balanceOf(address owner) external view returns (uint256 balance);
 }
@@ -19,7 +19,7 @@ contract Controller is Ownable {
   bool public paused;
   address public nft;
   address public splitter;
-  address public bittenByViper;
+  address public biteByViper;
   uint256 public price = 0.055555555555555555 ether;
 
   event EthMoved(address indexed to, bool indexed success, bytes returnData, uint256 amount);
@@ -33,32 +33,37 @@ contract Controller is Ownable {
   modifier initialized() {
     require(nft != address(0), "NO NFT");
     require(splitter != address(0), "NO SPLIT");
-    require(bittenByViper != address(0), "NO BITTEN");
+    require(biteByViper != address(0), "NO BITTEN");
     _;
   }
 
   function poison(address from, address to, uint256 tokenId, uint256 length) public initialized {
     require(msg.sender == nft, "Only Viper can call poison");
     require(iNFT(nft).balanceOf(to) == 0, "Can't poison someone who owns a Viper");
-    require(to.balance != 0, "Can't poison an address with 0 balance"); // TODO: decide whether to keep this
-    BittenByViper(bittenByViper).poison(from, to, tokenId, length);
+    require(to.balance != 0, "Can't poison an address with 0 balance");
+    BiteByViper(biteByViper).poison(from, to, tokenId, length);
   }
 
   /// @dev mints NFTs
-  function mint() public payable initialized {
-    require(!paused, "PAUSED");
-    require(msg.value >= price, "WRONG PRICE");
-    (bool sent, bytes memory data) = splitter.call{value: price}("");
-    emit EthMoved(msg.sender, sent, data, price);
-    iNFT(nft).mint(msg.sender);
+  function mint() public payable {
+    mint(msg.sender, 1);
   }
 
-  function mint(uint256 batch) public payable initialized {
-    require(msg.value >= price * batch, "WRONG BATCH PRICE");
-    require(batch == 3 || batch == 5, "CAN'T BATCH MINT BESIDES 3 OR 5");
-    for (uint256 i = 0; i < batch; i++) {
-      mint();
-    }
+  function mint(uint256 quantity) public payable {
+    mint(msg.sender, quantity);
+  }
+
+  function mint(address recipient) public payable {
+    mint(recipient, 1);
+  }
+
+  function mint(address recipient, uint256 quantity) public payable initialized {
+    require(!paused, "PAUSED");
+    require(msg.value >= price * quantity, "WRONG PRICE");
+    require(quantity == 1 || quantity == 3 || quantity == 5, "CAN'T MINT BESIDES QUANTITY OF 1, 3 OR 5");
+    (bool sent, bytes memory data) = splitter.call{value: msg.value}("");
+    emit EthMoved(splitter, sent, data, msg.value);
+    iNFT(nft).controllerMint(recipient, quantity);
   }
 
   /// @dev only the owner can set the splitter address
@@ -66,9 +71,9 @@ contract Controller is Ownable {
     splitter = splitter_;
   }
 
-  /// @dev only the owner can set the bittenByViper address
-  function setBittenByViper(address bittenByViper_) public onlyOwner {
-    bittenByViper = bittenByViper_;
+  /// @dev only the owner can set the biteByViper address
+  function setBiteByViper(address biteByViper_) public onlyOwner {
+    biteByViper = biteByViper_;
   }
 
   /// @dev only the owner can set the nft address
@@ -86,8 +91,8 @@ contract Controller is Ownable {
   }
 
   /// @dev only the owner can mint without paying
-  function adminMint(address recipient) public initialized onlyOwner {
-    iNFT(nft).mint(recipient);
+  function adminMint(address recipient, uint256 quantity) public initialized onlyOwner {
+    iNFT(nft).controllerMint(recipient, quantity);
   }
 
   /// @dev if mint fails to send eth to splitter, admin can recover
