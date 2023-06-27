@@ -20,9 +20,7 @@
     "ethers": "*",
     "hardhat": "*",
     "hardhat-gas-reporter": "*",
-    "prettier": "2.7.1"
-  },
-  "dependencies": {
+    "prettier": "2.7.1",
     "@eth-optimism/plugins": "*",
     "@openzeppelin/contracts": "^4.6.0",
     "@rari-capital/solmate": "*",
@@ -36,5 +34,7 @@
     "solady": "^0.0.54",
     "solc": "^0.8.15",
     "solidity-bytes-utils": "*"
+  },
+  "dependencies": {
   }
 }
