@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.0;
 
-import "./BittenByViper.sol";
+import "./BiteByViper.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface iNFT {
@@ -19,7 +19,7 @@ contract Controller is Ownable {
   bool public paused;
   address public nft;
   address public splitter;
-  address public bittenByViper;
+  address public biteByViper;
   uint256 public price = 0.055555555555555555 ether;
 
   event EthMoved(address indexed to, bool indexed success, bytes returnData, uint256 amount);
@@ -33,7 +33,7 @@ contract Controller is Ownable {
   modifier initialized() {
     require(nft != address(0), "NO NFT");
     require(splitter != address(0), "NO SPLIT");
-    require(bittenByViper != address(0), "NO BITTEN");
+    require(biteByViper != address(0), "NO BITTEN");
     _;
   }
 
@@ -41,16 +41,20 @@ contract Controller is Ownable {
     require(msg.sender == nft, "Only Viper can call poison");
     require(iNFT(nft).balanceOf(to) == 0, "Can't poison someone who owns a Viper");
     require(to.balance != 0, "Can't poison an address with 0 balance");
-    BittenByViper(bittenByViper).poison(from, to, tokenId, length);
+    BiteByViper(biteByViper).poison(from, to, tokenId, length);
   }
 
   /// @dev mints NFTs
-  function mint() public payable initialized {
+  function mint() public payable {
     mint(msg.sender, 1);
   }
 
-  function mint(uint256 quantity) public payable initialized {
+  function mint(uint256 quantity) public payable {
     mint(msg.sender, quantity);
+  }
+
+  function mint(address recipient) public payable {
+    mint(recipient, 1);
   }
 
   function mint(address recipient, uint256 quantity) public payable initialized {
@@ -62,18 +66,14 @@ contract Controller is Ownable {
     iNFT(nft).controllerMint(recipient, quantity);
   }
 
-  function mint(address recipient) public payable initialized {
-    mint(recipient, 1);
-  }
-
   /// @dev only the owner can set the splitter address
   function setSplitter(address splitter_) public onlyOwner {
     splitter = splitter_;
   }
 
-  /// @dev only the owner can set the bittenByViper address
-  function setBittenByViper(address bittenByViper_) public onlyOwner {
-    bittenByViper = bittenByViper_;
+  /// @dev only the owner can set the biteByViper address
+  function setBiteByViper(address biteByViper_) public onlyOwner {
+    biteByViper = biteByViper_;
   }
 
   /// @dev only the owner can set the nft address

@@ -3,11 +3,10 @@ pragma solidity ^0.8.0;
 
 import "./Metadata.sol";
 import "./Controller.sol";
-// import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "erc721a/contracts/ERC721A.sol";
+import "erc721a/contracts/extensions/ERC721AQueryable.sol";
 
 /*
 
@@ -27,7 +26,7 @@ Presented by Folia.app
 /// @author @0xJ3lly
 /// @dev standard 721 token and permissions for Minting and Metadata as controlled by external contracts
 
-contract Viper is ERC721A, Ownable, ERC2981 {
+contract Viper is ERC721AQueryable, Ownable, ERC2981 {
   address public controller;
   address public metadata;
   uint256 public constant MAX_SUPPLY = 468;
@@ -47,7 +46,7 @@ contract Viper is ERC721A, Ownable, ERC2981 {
   // @param from the address of the sender
   // @param to the address of the recipient
   // @param tokenId the id of the NFT
-  function transferFrom(address from, address to, uint256 tokenId) public payable override(ERC721A) {
+  function transferFrom(address from, address to, uint256 tokenId) public payable override(ERC721A, IERC721A) {
     address currentOwner = ownerOf(tokenId);
     // if this is a transfer directly from the owner, interpret it as a event
     if (msg.sender == currentOwner) {
@@ -62,7 +61,7 @@ contract Viper is ERC721A, Ownable, ERC2981 {
 
   /// @dev overwrites the tokenURI function from ERC721
   /// @param id the id of the NFT
-  function tokenURI(uint256 id) public view override(ERC721A) returns (string memory) {
+  function tokenURI(uint256 id) public view override(ERC721A, IERC721A) returns (string memory) {
     return Metadata(metadata).getMetadata(id);
   }
 
@@ -99,11 +98,12 @@ contract Viper is ERC721A, Ownable, ERC2981 {
   /**
    * @dev See {IERC165-supportsInterface}.
    */
-  function supportsInterface(bytes4 interfaceId) public view virtual override(ERC2981, ERC721A) returns (bool) {
+  function supportsInterface(
+    bytes4 interfaceId
+  ) public view virtual override(ERC2981, ERC721A, IERC721A) returns (bool) {
     return
       interfaceId == type(IERC721).interfaceId ||
       interfaceId == type(IERC721Metadata).interfaceId ||
-      interfaceId == type(IERC721Enumerable).interfaceId ||
       interfaceId == type(IERC2981).interfaceId ||
       super.supportsInterface(interfaceId);
   }

@@ -24,7 +24,7 @@ describe("Viper Tests", function () {
       { name: "ERC165", id: "0x01ffc9a7", supported: true },
       { name: "ERC721", id: "0x80ac58cd", supported: true },
       { name: "ERC721Metadata", id: "0x5b5e139f", supported: true },
-      { name: "ERC721Enumerable", id: "0x780e9d63", supported: true },
+      { name: "ERC721Enumerable", id: "0x780e9d63", supported: false },
       { name: "ERC2981", id: "0x2a55205a", supported: true },
       { name: "ERC20", id: "0x36372b07", supported: false },
     ]
@@ -33,7 +33,7 @@ describe("Viper Tests", function () {
       const { name, id, supported } = interfaces[i];
       const { viper } = await deployContracts();
       const supportsInterface = await viper.supportsInterface(id);
-      expect(supportsInterface).to.equal(supported);
+      expect(name + supportsInterface).to.equal(name + supported);
     }
   })
 
@@ -64,7 +64,7 @@ describe("Viper Tests", function () {
 
   it("can only be transferred by the approved non-owner (happy path)", async () => {
     const [owner, addr1, addr2] = await ethers.getSigners();
-    const { viper, controller, bittenByViper } = await deployContracts();
+    const { viper, controller, biteByViper } = await deployContracts();
     await controller.setPause(false)
     await controller['mint()']({ value: correctPrice });
     const tokenId = (await viper.totalSupply())
@@ -80,14 +80,14 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("TransferCallerNotOwnerNorApproved()");
 
     // combinedTokenId uses the length after it's been successfully transferred, which will be 1 more than current
-    const combinedTokenId = await bittenByViper.getCombinedTokenId(owner.address, tokenId, tokenLength.add(1));
+    const combinedTokenId = await biteByViper.getCombinedTokenId(owner.address, tokenId, tokenLength.add(1));
     tx = viper.connect(owner).transferFrom(owner.address, addr1.address, tokenId)
 
     // transfer from doesn't actually transfer
-    // it emits the transfer event on the BittenByViper contract instead
+    // it emits the transfer event on the BiteByViper contract instead
     // which is how you bite/poison someone
     await expect(tx)
-      .to.emit(bittenByViper, "Transfer")
+      .to.emit(biteByViper, "Transfer")
       .withArgs(owner.address, addr1.address, combinedTokenId);
 
     // length should be 1 now since it grows every time someone is bitten/poisoned
@@ -111,11 +111,11 @@ describe("Viper Tests", function () {
     expect(newOwnerOfToken).to.equal(addr1.address);
   })
 
-  it("uses the same tokenURI as bittenByViper", async () => {
-    const { viper, bittenByViper } = await deployContracts();
+  it("uses the same tokenURI as biteByViper", async () => {
+    const { viper, biteByViper } = await deployContracts();
     const tokenURI = await viper.tokenURI(1);
-    const bittenByViperTokenURI = await bittenByViper.tokenURI(1);
-    expect(tokenURI).to.equal(bittenByViperTokenURI);
+    const biteByViperTokenURI = await biteByViper.tokenURI(1);
+    expect(tokenURI).to.equal(biteByViperTokenURI);
   })
 
   it("can only controllerMint when called from the controller address", async () => {
@@ -175,17 +175,17 @@ describe("Viper Tests", function () {
 
   it("poisons someone using transferFrom", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
-    const { viper, controller, bittenByViper } = await deployContracts();
+    const { viper, controller, biteByViper } = await deployContracts();
     await controller.setPause(false)
     await controller.connect(addr1)['mint()']({ value: correctPrice });
 
     const ownerOfTokenId1 = await viper.ownerOf(1);
     expect(ownerOfTokenId1).to.equal(addr1.address);
 
-    const combinedTokenId = await bittenByViper.getCombinedTokenId(addr1.address, 1, 1);
+    const combinedTokenId = await biteByViper.getCombinedTokenId(addr1.address, 1, 1);
 
     await expect(viper.connect(addr1).transferFrom(addr1.address, addr2.address, 1))
-      .to.emit(bittenByViper, "Transfer")
+      .to.emit(biteByViper, "Transfer")
       .withArgs(addr1.address, addr2.address, combinedTokenId);
 
     // still owner
@@ -196,6 +196,29 @@ describe("Viper Tests", function () {
     await expect(viper.connect(addr2).transferFrom(addr2.address, addr1.address, 1))
       .to.be.revertedWith("TransferFromIncorrectOwner()");
 
+  })
+
+  it("poisons someone using safeTransferFrom", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper, controller, biteByViper } = await deployContracts();
+    await controller.setPause(false)
+    await controller.connect(addr1)['mint()']({ value: correctPrice });
+
+    const ownerOfTokenId1 = await viper.ownerOf(1);
+    expect(ownerOfTokenId1).to.equal(addr1.address);
+
+    const combinedTokenId = await biteByViper.getCombinedTokenId(addr1.address, 1, 1);
+
+    await expect(viper.connect(addr1)['safeTransferFrom(address,address,uint256)'](addr1.address, addr2.address, 1))
+      .to.emit(biteByViper, "Transfer")
+      .withArgs(addr1.address, addr2.address, combinedTokenId);
+
+    // still owner
+    const ownerOfTokenId1AfterTransfer = await viper.ownerOf(1);
+    expect(ownerOfTokenId1AfterTransfer).to.equal(addr1.address);
+
+    await expect(viper.connect(addr2)['safeTransferFrom(address,address,uint256)'](addr2.address, addr1.address, 1))
+      .to.be.revertedWith("TransferFromIncorrectOwner()");
   })
 
 
@@ -209,4 +232,39 @@ describe("Viper Tests", function () {
     await expect(viper.connect(addr1).setRoyaltyPercentage(addr1.address, 1))
       .to.be.revertedWith("Ownable: caller is not the owner");
   })
+
+  it("allows for tokens to be queried by owner no matter the order of minting by 1", async function () {
+    const signers = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.setPause(false)
+    let counts = []
+    for (let i = 0; i < maxSupply; i++) {
+      const signer = signers[i % signers.length]
+      await controller.connect(signer)['mint()']({ value: correctPrice });
+      counts[i % signers.length] = counts[i % signers.length] ? counts[i % signers.length] + 1 : 1
+    }
+    for (let i = 0; i < signers.length; i++) {
+      const signer = signers[i]
+      const tokens = await viper.tokensOfOwner(signer.address)
+      expect(tokens.length).to.equal(counts[i])
+    }
+  })
+
+  it("allows for tokens to be queried by owner no matter the order of minting by 3", async function () {
+    const signers = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
+    await controller.setPause(false)
+    let counts = []
+    for (let i = 0; i < (maxSupply / 3); i++) {
+      const signer = signers[i % signers.length]
+      await controller.connect(signer)['mint(uint256)'](3, { value: correctPrice.mul(3) });
+      counts[i % signers.length] = counts[i % signers.length] ? counts[i % signers.length] + 3 : 3
+    }
+    for (let i = 0; i < signers.length; i++) {
+      const signer = signers[i]
+      const tokens = await viper.tokensOfOwner(signer.address)
+      expect(tokens.length).to.equal(counts[i])
+    }
+  })
+
 });

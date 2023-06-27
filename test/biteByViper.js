@@ -2,13 +2,13 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { deployContracts, correctPrice } = require("../scripts/utils.js");
 
-describe("BittenByViper Tests", function () {
+describe("BiteByViper Tests", function () {
   this.timeout(50000000);
 
   it("has the correct controller and metadata", async () => {
-    const { bittenByViper, controller, metadata } = await deployContracts();
-    expect(await bittenByViper.viperControllerAddress()).to.equal(controller.address);
-    expect(await bittenByViper.metadata()).to.equal(metadata.address);
+    const { biteByViper, controller, metadata } = await deployContracts();
+    expect(await biteByViper.viperControllerAddress()).to.equal(controller.address);
+    expect(await biteByViper.metadata()).to.equal(metadata.address);
   })
 
   it("has all the correct interfaces", async () => {
@@ -23,15 +23,15 @@ describe("BittenByViper Tests", function () {
 
     for (let i = 0; i < interfaces.length; i++) {
       const { name, id, supported } = interfaces[i];
-      const { bittenByViper } = await deployContracts();
-      const supportsInterface = await bittenByViper.supportsInterface(id);
+      const { biteByViper } = await deployContracts();
+      const supportsInterface = await biteByViper.supportsInterface(id);
       expect(supportsInterface).to.equal(supported);
     }
   })
 
   it("converts a token and a length from address to a token id", async () => {
     const [owner] = await ethers.getSigners();
-    const { bittenByViper } = await deployContracts();
+    const { biteByViper } = await deployContracts();
 
     const tests = [
       { tokenId: 0, length: 0, tokenShouldPass: true, lengthShouldPass: true },
@@ -44,10 +44,10 @@ describe("BittenByViper Tests", function () {
 
     for (let i = 0; i < tests.length; i++) {
       const { tokenId, length, tokenShouldPass, lengthShouldPass } = tests[i];
-      const combinedTokenId = await bittenByViper.getCombinedTokenId(owner.address, tokenId, length);
-      const returnedTokenId = await bittenByViper.extractTokenId(combinedTokenId);
-      const returnedAddress = await bittenByViper.extractAddress(combinedTokenId);
-      const returnedLength = await bittenByViper.extractLength(combinedTokenId);
+      const combinedTokenId = await biteByViper.getCombinedTokenId(owner.address, tokenId, length);
+      const returnedTokenId = await biteByViper.extractTokenId(combinedTokenId);
+      const returnedAddress = await biteByViper.extractAddress(combinedTokenId);
+      const returnedLength = await biteByViper.extractLength(combinedTokenId);
 
       expect(returnedAddress).to.equal(owner.address);
 
@@ -66,40 +66,40 @@ describe("BittenByViper Tests", function () {
 
   it("can updateViperControllerAddress if owner", async () => {
     const [owner, acc2, acc3] = await ethers.getSigners();
-    const { bittenByViper } = await deployContracts();
+    const { biteByViper } = await deployContracts();
 
     const newMetadataAddress = acc2.address
-    await bittenByViper.updateMetadataAddress(newMetadataAddress);
-    const returnedMetadataAddress = await bittenByViper.metadata();
+    await biteByViper.updateMetadataAddress(newMetadataAddress);
+    const returnedMetadataAddress = await biteByViper.metadata();
     expect(returnedMetadataAddress).to.equal(newMetadataAddress);
 
-    await expect(bittenByViper.connect(acc2).updateMetadataAddress(acc3.address))
+    await expect(biteByViper.connect(acc2).updateMetadataAddress(acc3.address))
       .to.be.revertedWith("Ownable: caller is not the owner");
   })
 
 
   it("can updateMetadataAddress if owner", async () => {
     const [owner, acc2, acc3] = await ethers.getSigners();
-    const { bittenByViper } = await deployContracts();
+    const { biteByViper } = await deployContracts();
 
     const newControllerAddress = acc2.address
-    await bittenByViper.updateViperControllerAddress(newControllerAddress);
-    const returnedControllerAddress = await bittenByViper.viperControllerAddress();
+    await biteByViper.updateViperControllerAddress(newControllerAddress);
+    const returnedControllerAddress = await biteByViper.viperControllerAddress();
     expect(returnedControllerAddress).to.equal(newControllerAddress);
 
-    await expect(bittenByViper.connect(acc2).updateViperControllerAddress(acc3.address))
+    await expect(biteByViper.connect(acc2).updateViperControllerAddress(acc3.address))
       .to.be.revertedWith("Ownable: caller is not the owner");
   })
 
   it("fails when poison is called from an address that is not the controller", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await expect(bittenByViper.poison(acct1.address, acct2.address, 1, 1))
+    const { biteByViper, controller } = await deployContracts();
+    await expect(biteByViper.poison(acct1.address, acct2.address, 1, 1))
       .to.be.revertedWith("Only Controller can call poison");
 
-    await bittenByViper.updateViperControllerAddress(owner.address)
+    await biteByViper.updateViperControllerAddress(owner.address)
     // expect poison to not revert
-    await expect(bittenByViper.poison(acct1.address, acct2.address, 1, 1))
+    await expect(biteByViper.poison(acct1.address, acct2.address, 1, 1))
       .to.not.be.reverted;
 
 
@@ -107,88 +107,88 @@ describe("BittenByViper Tests", function () {
 
   it("can poison when controllerAddress is stubbed", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await bittenByViper.updateViperControllerAddress(owner.address);
+    const { biteByViper, controller } = await deployContracts();
+    await biteByViper.updateViperControllerAddress(owner.address);
 
-    const combinedTokenId = await bittenByViper.getCombinedTokenId(acct1.address, 1, 1);
-    tx = bittenByViper.poison(acct1.address, acct2.address, 1, 1);
+    const combinedTokenId = await biteByViper.getCombinedTokenId(acct1.address, 1, 1);
+    tx = biteByViper.poison(acct1.address, acct2.address, 1, 1);
 
     await expect(tx)
-      .to.emit(bittenByViper, "Transfer")
+      .to.emit(biteByViper, "Transfer")
       .withArgs(acct1.address, acct2.address, combinedTokenId);
 
   })
 
   it("increments the totalSupply when poison is called", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await bittenByViper.updateViperControllerAddress(owner.address);
+    const { biteByViper, controller } = await deployContracts();
+    await biteByViper.updateViperControllerAddress(owner.address);
 
-    const totalSupply = await bittenByViper.totalSupply();
-    await bittenByViper.poison(acct1.address, acct2.address, 1, 1);
-    const newTotalSupply = await bittenByViper.totalSupply();
+    const totalSupply = await biteByViper.totalSupply();
+    await biteByViper.poison(acct1.address, acct2.address, 1, 1);
+    const newTotalSupply = await biteByViper.totalSupply();
     expect(newTotalSupply).to.equal(totalSupply.add(1));
   })
 
   it("has the same metadata endpoint as viper", async () => {
-    const { bittenByViper, viper } = await deployContracts();
-    const metadata = await bittenByViper.tokenURI(1);
+    const { biteByViper, viper } = await deployContracts();
+    const metadata = await biteByViper.tokenURI(1);
     const viperMetadata = await viper.tokenURI(1);
     expect(metadata).to.equal(viperMetadata);
   })
 
   it("has correct token metadata", async () => {
-    const { bittenByViper, viper } = await deployContracts();
-    const name = await bittenByViper.name();
-    const symbol = await bittenByViper.symbol();
-    expect(name).to.equal("BittenByViper");
+    const { biteByViper, viper } = await deployContracts();
+    const name = await biteByViper.name();
+    const symbol = await biteByViper.symbol();
+    expect(name).to.equal("BiteByViper");
     expect(symbol).to.equal("BBVPR");
   })
 
   it("has the correct balance of", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await bittenByViper.updateViperControllerAddress(owner.address);
-    const beforeBalance = await bittenByViper.balanceOf(acct2.address);
+    const { biteByViper, controller } = await deployContracts();
+    await biteByViper.updateViperControllerAddress(owner.address);
+    const beforeBalance = await biteByViper.balanceOf(acct2.address);
     expect(beforeBalance).to.equal(0)
-    await bittenByViper.poison(acct1.address, acct2.address, 1, 1);
-    const afterBalance = await bittenByViper.balanceOf(acct2.address);
+    await biteByViper.poison(acct1.address, acct2.address, 1, 1);
+    const afterBalance = await biteByViper.balanceOf(acct2.address);
     expect(afterBalance).to.equal(1)
   })
 
   it("can't poison the same person twice", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await bittenByViper.updateViperControllerAddress(owner.address);
-    await bittenByViper.poison(acct1.address, acct2.address, 1, 1);
-    await expect(bittenByViper.poison(acct1.address, acct2.address, 1, 1))
+    const { biteByViper, controller } = await deployContracts();
+    await biteByViper.updateViperControllerAddress(owner.address);
+    await biteByViper.poison(acct1.address, acct2.address, 1, 1);
+    await expect(biteByViper.poison(acct1.address, acct2.address, 1, 1))
       .to.be.revertedWith("Already bitten by a Viper");
   })
 
   it("can't trigger any legacy NFT functions", async () => {
     const [owner, acct1, acct2] = await ethers.getSigners();
-    const { bittenByViper, controller } = await deployContracts();
-    await bittenByViper.updateViperControllerAddress(owner.address);
-    await bittenByViper.poison(acct1.address, acct2.address, 1, 1);
-    const combinedTokenId = await bittenByViper.getCombinedTokenId(acct1.address, 1, 1);
-    const ownerOf = await bittenByViper.ownerOf(combinedTokenId)
+    const { biteByViper, controller } = await deployContracts();
+    await biteByViper.updateViperControllerAddress(owner.address);
+    await biteByViper.poison(acct1.address, acct2.address, 1, 1);
+    const combinedTokenId = await biteByViper.getCombinedTokenId(acct1.address, 1, 1);
+    const ownerOf = await biteByViper.ownerOf(combinedTokenId)
     expect(ownerOf).to.equal(ethers.constants.AddressZero);
 
-    const getApproved = await bittenByViper.getApproved(combinedTokenId)
+    const getApproved = await biteByViper.getApproved(combinedTokenId)
     expect(getApproved).to.equal(ethers.constants.AddressZero);
 
-    const isApprovedForAll = await bittenByViper.isApprovedForAll(acct1.address, acct2.address)
+    const isApprovedForAll = await biteByViper.isApprovedForAll(acct1.address, acct2.address)
     expect(isApprovedForAll).to.equal(false);
 
-    await expect(bittenByViper.transferFrom(acct1.address, acct2.address, combinedTokenId))
+    await expect(biteByViper.transferFrom(acct1.address, acct2.address, combinedTokenId))
       .to.be.revertedWith("VIPER BITES CAN'T BE CURED");
-    await expect(bittenByViper['safeTransferFrom(address,address,uint256)'](acct1.address, acct2.address, combinedTokenId))
+    await expect(biteByViper['safeTransferFrom(address,address,uint256)'](acct1.address, acct2.address, combinedTokenId))
       .to.be.revertedWith("VIPER BITES CAN'T BE CURED");
-    await expect(bittenByViper['safeTransferFrom(address,address,uint256,bytes)'](acct1.address, acct2.address, combinedTokenId, []))
+    await expect(biteByViper['safeTransferFrom(address,address,uint256,bytes)'](acct1.address, acct2.address, combinedTokenId, []))
       .to.be.revertedWith("VIPER BITES CAN'T BE CURED");
-    await expect(bittenByViper.approve(acct1.address, combinedTokenId))
+    await expect(biteByViper.approve(acct1.address, combinedTokenId))
       .to.be.revertedWith("VIPER BITES CAN'T BE CURED");
-    await expect(bittenByViper.setApprovalForAll(acct1.address, true))
+    await expect(biteByViper.setApprovalForAll(acct1.address, true))
       .to.be.revertedWith("VIPER BITES CAN'T BE CURED");
 
   })

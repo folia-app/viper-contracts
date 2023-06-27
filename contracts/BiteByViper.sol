@@ -20,12 +20,12 @@ By @0xJ3lly
 Presented by Folia.app                  
 */
 
-/// @title Viper
+/// @title Bite by Viper
 /// @notice https://viper.folia.app
 /// @author @0xJ3lly
-/// @dev standard 721 token and permissions for Minting and Metadata as controlled by external contracts
+/// @dev modified 721 token
 
-contract BittenByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
+contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   address public viperControllerAddress;
   address public metadata;
   uint256 public totalSupply;
@@ -96,7 +96,7 @@ contract BittenByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   }
 
   function name() external pure override(IERC721Metadata) returns (string memory) {
-    return "BittenByViper";
+    return "BiteByViper";
   }
 
   function symbol() external pure override(IERC721Metadata) returns (string memory) {
