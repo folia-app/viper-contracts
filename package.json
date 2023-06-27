@@ -29,6 +29,7 @@
     "ba64": "*",
     "base64-sol": "*",
     "dotenv": "^16.0.1",
+    "erc721a": "^4.2.3",
     "eslint": "^8.26.0",
     "hardhat-contract-sizer": "*",
     "npm-check-updates": "*",

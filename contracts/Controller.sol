@@ -5,7 +5,7 @@ import "./BittenByViper.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 interface iNFT {
-  function mint(address recipient) external;
+  function controllerMint(address recipient, uint256 quantity) external;
 
   function balanceOf(address owner) external view returns (uint256 balance);
 }
@@ -40,25 +40,30 @@ contract Controller is Ownable {
   function poison(address from, address to, uint256 tokenId, uint256 length) public initialized {
     require(msg.sender == nft, "Only Viper can call poison");
     require(iNFT(nft).balanceOf(to) == 0, "Can't poison someone who owns a Viper");
-    require(to.balance != 0, "Can't poison an address with 0 balance"); // TODO: decide whether to keep this
+    require(to.balance != 0, "Can't poison an address with 0 balance");
     BittenByViper(bittenByViper).poison(from, to, tokenId, length);
   }
 
   /// @dev mints NFTs
   function mint() public payable initialized {
-    require(!paused, "PAUSED");
-    require(msg.value >= price, "WRONG PRICE");
-    (bool sent, bytes memory data) = splitter.call{value: price}("");
-    emit EthMoved(msg.sender, sent, data, price);
-    iNFT(nft).mint(msg.sender);
+    mint(msg.sender, 1);
   }
 
-  function mint(uint256 batch) public payable initialized {
-    require(msg.value >= price * batch, "WRONG BATCH PRICE");
-    require(batch == 3 || batch == 5, "CAN'T BATCH MINT BESIDES 3 OR 5");
-    for (uint256 i = 0; i < batch; i++) {
-      mint();
-    }
+  function mint(uint256 quantity) public payable initialized {
+    mint(msg.sender, quantity);
+  }
+
+  function mint(address recipient, uint256 quantity) public payable initialized {
+    require(!paused, "PAUSED");
+    require(msg.value >= price * quantity, "WRONG PRICE");
+    require(quantity == 1 || quantity == 3 || quantity == 5, "CAN'T MINT BESIDES QUANTITY OF 1, 3 OR 5");
+    (bool sent, bytes memory data) = splitter.call{value: msg.value}("");
+    emit EthMoved(splitter, sent, data, msg.value);
+    iNFT(nft).controllerMint(recipient, quantity);
+  }
+
+  function mint(address recipient) public payable initialized {
+    mint(recipient, 1);
   }
 
   /// @dev only the owner can set the splitter address
@@ -86,8 +91,8 @@ contract Controller is Ownable {
   }
 
   /// @dev only the owner can mint without paying
-  function adminMint(address recipient) public initialized onlyOwner {
-    iNFT(nft).mint(recipient);
+  function adminMint(address recipient, uint256 quantity) public initialized onlyOwner {
+    iNFT(nft).controllerMint(recipient, quantity);
   }
 
   /// @dev if mint fails to send eth to splitter, admin can recover

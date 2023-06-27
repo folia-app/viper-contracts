@@ -25,7 +25,7 @@ describe("Controller Tests", function () {
       .to.be.revertedWith("Ownable: caller is not the owner");
     await expect(controller.connect(addr1).setSplitter(addr1.address))
       .to.be.revertedWith("Ownable: caller is not the owner");
-    await expect(controller.connect(addr1).setPaused(false))
+    await expect(controller.connect(addr1).setPause(false))
       .to.be.revertedWith("Ownable: caller is not the owner");
     await expect(controller.connect(addr1).setPrice(ethers.utils.parseEther("0.1")))
       .to.be.revertedWith("Ownable: caller is not the owner");
@@ -55,7 +55,7 @@ describe("Controller Tests", function () {
     tx = controller['mint()']({ value: correctPrice })
     await expect(tx)
       .to.emit(controller, "EthMoved")
-      .withArgs(owner.address, false, "0x", correctPrice);
+      .withArgs(metadata.address, false, "0x", correctPrice);
 
     // the controller still has the eth
     const balanceAfter = await ethers.provider.getBalance(controller.address);
@@ -117,7 +117,7 @@ describe("Controller Tests", function () {
     await controller.setPause(false);
     await controller.connect(addr3)['mint()']({ value: correctPrice });
     const tokenBalance = await viper.balanceOf(addr3.address);
-    const tokenId = await viper.tokenOfOwnerByIndex(addr3.address, 0);
+    const tokenId = await viper.totalSupply()
     expect(tokenBalance).to.equal(1);
     await controller.connect(addr4)['mint()']({ value: correctPrice });
     const tokenBalance2 = await viper.balanceOf(addr4.address);
@@ -132,7 +132,7 @@ describe("Controller Tests", function () {
     const { controller, viper } = await deployContracts();
     await controller.setPause(false);
     await controller.connect(addr3)['mint()']({ value: correctPrice });
-    const tokenId = await viper.tokenOfOwnerByIndex(addr3.address, 0);
+    const tokenId = await viper.totalSupply()
     const emptyAddress = ethers.constants.AddressZero.substring(0, 41) + "1";
     await expect(viper.connect(addr3).transferFrom(addr3.address, emptyAddress, tokenId))
       .to.be.revertedWith("Can't poison an address with 0 balance");
@@ -144,7 +144,7 @@ describe("Controller Tests", function () {
     const { viper, controller } = await deployContracts();
     await controller.setPause(false);
     await controller['mint()']({ value: correctPrice });
-    const tokenID = await viper.tokenOfOwnerByIndex(owner.address, 0);
+    const tokenID = await viper.totalSupply()
     expect(tokenID).to.equal(1);
   })
 
@@ -161,7 +161,7 @@ describe("Controller Tests", function () {
     const [owner] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
     await controller.setPause(false);
-    await expect(viper.mint(owner.address)).to.be.revertedWith("NOT CONTROLLER");
+    await expect(viper.controllerMint(owner.address, 1)).to.be.revertedWith("NOT CONTROLLER");
   });
 
   it("succeeds to mint", async function () {
@@ -191,7 +191,7 @@ describe("Controller Tests", function () {
       .withArgs(ethers.constants.AddressZero, addr2.address, 8)
 
     await expect(controller['mint(uint256)'](2, { value: correctPrice.mul(2) }))
-      .to.be.revertedWith("CAN'T BATCH MINT BESIDES 3 OR 5")
+      .to.be.revertedWith("CAN'T MINT BESIDES QUANTITY OF 1, 3 OR 5")
 
     await expect(controller['mint(uint256)'](3, { value: correctPrice.mul(5) }))
       .to.emit(viper, "Transfer")
@@ -200,7 +200,7 @@ describe("Controller Tests", function () {
       .withArgs(ethers.constants.AddressZero, owner.address, 11)
 
     await expect(controller['mint(uint256)'](5, { value: correctPrice.mul(3) }))
-      .to.be.revertedWith("WRONG BATCH PRICE")
+      .to.be.revertedWith("WRONG PRICE")
   })
 
   it("won't allow to mint past max supply", async function () {
@@ -226,7 +226,7 @@ describe("Controller Tests", function () {
   it("controller mint from admin", async function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
-    await controller.adminMint(addr1.address);
+    await controller.adminMint(addr1.address, 1);
     expect(await viper.ownerOf(1)).to.equal(addr1.address);
   });
 
@@ -234,17 +234,17 @@ describe("Controller Tests", function () {
     const [owner, addr1, addr2, addr3] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
     await controller.setNFT(ethers.constants.AddressZero);
-    await expect(controller.adminMint(addr3.address)).to.be.revertedWith("NO NFT");
+    await expect(controller.adminMint(addr3.address, 1)).to.be.revertedWith("NO NFT");
     await controller.setNFT(viper.address)
     await controller.setSplitter(ethers.constants.AddressZero)
-    await expect(controller.adminMint(addr3.address)).to.be.revertedWith("NO SPLIT");
+    await expect(controller.adminMint(addr3.address, 1)).to.be.revertedWith("NO SPLIT");
   })
 
 
   it("fails to admin mint when not owner", async function () {
     const [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
     const { controller, metadata } = await deployContracts();
-    await expect(controller.connect(addr3).adminMint(addr3.address)).to.be.revertedWith(
+    await expect(controller.connect(addr3).adminMint(addr3.address, 1)).to.be.revertedWith(
       "Ownable: caller is not the owner"
     );
   });

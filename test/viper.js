@@ -67,7 +67,7 @@ describe("Viper Tests", function () {
     const { viper, controller, bittenByViper } = await deployContracts();
     await controller.setPause(false)
     await controller['mint()']({ value: correctPrice });
-    const tokenId = await viper.tokenOfOwnerByIndex(owner.address, 0);
+    const tokenId = (await viper.totalSupply())
     // first token should be tokenId 1
     expect(tokenId).to.equal(1);
 
@@ -77,7 +77,7 @@ describe("Viper Tests", function () {
 
     // can't transfer a token you don't own or aren't approved for
     await expect(viper.connect(addr1).transferFrom(owner.address, addr1.address, tokenId))
-      .to.be.revertedWith("ERC721: caller is not token owner or approved");
+      .to.be.revertedWith("TransferCallerNotOwnerNorApproved()");
 
     // combinedTokenId uses the length after it's been successfully transferred, which will be 1 more than current
     const combinedTokenId = await bittenByViper.getCombinedTokenId(owner.address, tokenId, tokenLength.add(1));
@@ -91,7 +91,7 @@ describe("Viper Tests", function () {
       .withArgs(owner.address, addr1.address, combinedTokenId);
 
     // length should be 1 now since it grows every time someone is bitten/poisoned
-    const tokenLengthAfterTransfer = await viper.lengths(tokenId.sub(1))
+    const tokenLengthAfterTransfer = await viper.lengths(tokenId)
     expect(tokenLengthAfterTransfer).to.equal(1);
 
     // viper didn't change owners since only a bite/poison happened
@@ -118,24 +118,26 @@ describe("Viper Tests", function () {
     expect(tokenURI).to.equal(bittenByViperTokenURI);
   })
 
-  it("can only mint when called from the controller address", async () => {
+  it("can only controllerMint when called from the controller address", async () => {
     const [owner, addr1] = await ethers.getSigners();
     const { viper, controller } = await deployContracts();
 
-    await expect(viper.mint(addr1.address))
+    await expect(viper.controllerMint(addr1.address, 1))
       .to.be.revertedWith("NOT CONTROLLER");
 
-    await viper.setController(addr1.address);
+  })
+
+  it("is also possible to mint from viper contract directly", async () => {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper, controller } = await deployContracts();
     await controller.setPause(false)
-    await expect(viper.connect(addr1).mint(addr1.address))
-      .to.not.be.reverted;
+    await viper.connect(addr1)['mint()']({ value: correctPrice })
 
     const tokenBalance = await viper.balanceOf(addr1.address);
     expect(tokenBalance).to.equal(1);
 
-    const totalSupply = await viper.totalSupply();
+    const totalSupply = await viper.totalSupply()
     expect(totalSupply).to.equal(1);
-
   })
 
   it("validate second mint event", async function () {
@@ -173,13 +175,27 @@ describe("Viper Tests", function () {
 
   it("poisons someone using transferFrom", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
-    const { viper, controller } = await deployContracts();
+    const { viper, controller, bittenByViper } = await deployContracts();
     await controller.setPause(false)
-    await controller['mint()']({ value: correctPrice });
     await controller.connect(addr1)['mint()']({ value: correctPrice });
-    await viper.connect(addr1).transferFrom(addr1.address, addr2.address, 2);
-    await expect(viper.connect(addr2).transferFrom(addr2.address, addr1.address, 2))
-      .to.be.revertedWith("ERC721: caller is not token owner or approved");
+
+    const ownerOfTokenId1 = await viper.ownerOf(1);
+    expect(ownerOfTokenId1).to.equal(addr1.address);
+
+    const combinedTokenId = await bittenByViper.getCombinedTokenId(addr1.address, 1, 1);
+
+    await expect(viper.connect(addr1).transferFrom(addr1.address, addr2.address, 1))
+      .to.emit(bittenByViper, "Transfer")
+      .withArgs(addr1.address, addr2.address, combinedTokenId);
+
+    // still owner
+    const ownerOfTokenId1AfterTransfer = await viper.ownerOf(1);
+    expect(ownerOfTokenId1AfterTransfer).to.equal(addr1.address);
+
+
+    await expect(viper.connect(addr2).transferFrom(addr2.address, addr1.address, 1))
+      .to.be.revertedWith("TransferFromIncorrectOwner()");
+
   })
 
 
