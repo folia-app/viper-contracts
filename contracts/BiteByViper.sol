@@ -26,18 +26,19 @@ Presented by Folia.app                  
 /// @dev modified 721 token
 
 contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
-  address public viperControllerAddress;
+  address public viperAddress;
   address public metadata;
   uint256 public totalSupply;
-  mapping(address => bool) internal bites;
+  mapping(address => bool) private _bites;
+  mapping(uint256 => address) private _owners;
 
-  constructor(address viperControllerAddress_, address metadata_) {
-    viperControllerAddress = viperControllerAddress_;
+  constructor(address viperAddress_, address metadata_) {
+    viperAddress = viperAddress_;
     metadata = metadata_;
   }
 
-  function updateViperControllerAddress(address viperControllerAddress_) public onlyOwner {
-    viperControllerAddress = viperControllerAddress_;
+  function updateViperAddress(address viperAddress_) public onlyOwner {
+    viperAddress = viperAddress_;
   }
 
   function updateMetadataAddress(address metadata_) public onlyOwner {
@@ -45,11 +46,12 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   }
 
   function poison(address from, address to, uint256 tokenId, uint256 length) public {
-    require(msg.sender == viperControllerAddress, "Only Controller can call poison");
-    require(bites[to] == false, "Already bitten by a Viper");
-    bites[to] = true;
-    totalSupply++;
+    require(msg.sender == viperAddress, "Only Viper can call poison");
+    require(_bites[to] == false, "Already bitten by a Viper");
     uint256 newTokenId = getCombinedTokenId(from, tokenId, length);
+    _bites[to] = true;
+    _owners[newTokenId] = to;
+    totalSupply++;
     emit Transfer(from, to, newTokenId);
   }
 
@@ -104,10 +106,12 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   }
 
   function balanceOf(address owner) external view override(IERC721) returns (uint256 balance) {
-    return bites[owner] ? 1 : 0;
+    return _bites[owner] ? 1 : 0;
   }
 
-  function ownerOf(uint256) external view override(IERC721) returns (address) {}
+  function ownerOf(uint256 tokenId) external view override(IERC721) returns (address) {
+    return _owners[tokenId];
+  }
 
   function getApproved(uint256) external view override(IERC721) returns (address) {}
 

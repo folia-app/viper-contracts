@@ -68,13 +68,11 @@ async function saveAddress(contract, name) {
 async function main() {
   console.log("Deploy to chain:");
   console.log(await hre.ethers.provider.getNetwork());
-  const { viper, controller, metadata, biteByViper } = await deployContracts();
-  await copyABI("Controller");
+  const { viper, metadata, biteByViper } = await deployContracts();
   await copyABI("Viper");
   await copyABI("Metadata");
   await copyABI("BiteByViper");
   await saveAddress(viper, "Viper");
-  await saveAddress(controller, "Controller");
   await saveAddress(metadata, "Metadata");
   await saveAddress(biteByViper, "BiteByViper");
 }

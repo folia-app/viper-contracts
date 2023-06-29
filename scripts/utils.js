@@ -5,7 +5,7 @@ const path = require("node:path");
 const fs = require("fs").promises;
 
 const correctPrice = ethers.utils.parseEther("0.055555555555555555");
-const maxSupply = 468;
+const maxSupply = 486;
 
 const testJson = (tJson) => {
   try {
@@ -54,24 +54,17 @@ const initContracts = async () => {
   const ABIViper = JSON.parse(await readData(await getPathABI("Viper")))["abi"];
   let viper = new ethers.Contract(addressViper, ABIViper, owner);
 
-  const addressController = JSON.parse(await readData(await getPathAddress("Controller")))[
-    "address"
-  ];
-  const ABIController = JSON.parse(await readData(await getPathABI("Controller")))["abi"];
-  let controller = new ethers.Contract(addressController, ABIController, owner);
+  const addressBiteByViper = JSON.parse(await readData(await getPathAddress("BiteByViper")))["address"];
+  const ABIBiteByViper = JSON.parse(await readData(await getPathABI("BiteByViper")))["abi"];
+  let biteByViper = new ethers.Contract(addressBiteByViper, ABIBiteByViper, owner);
 
-  let metadata = await initMetadata()
-
-  return { viper, controller, metadata };
-};
-
-const initMetadata = async () => {
-  const [owner] = await hre.ethers.getSigners();
   const addressMetadata = JSON.parse(await readData(await getPathAddress("Metadata")))["address"];
   const ABIMetadata = JSON.parse(await readData(await getPathABI("Metadata")))["abi"];
   let metadata = new ethers.Contract(addressMetadata, ABIMetadata, owner);
-  return metadata
-}
+
+  return { viper, biteByViper, metadata };
+};
+
 
 const decodeUri = (decodedJson) => {
   const metaWithoutDataURL = decodedJson.substring(decodedJson.indexOf(",") + 1);
@@ -90,14 +83,6 @@ const deployContracts = async () => {
   console.log("Start Deployment:");
   const [owner, splitter] = await hre.ethers.getSigners();
 
-  // deploy Controller
-  const Controller = await hre.ethers.getContractFactory("Controller");
-  // const controller = await Controller.deploy(splitter.address, networkinfo["chainId"] == 1 ? { nonce: 453 } : {});
-  const controller = await Controller.deploy(splitter.address);
-  await controller.deployed();
-  var controllerAddress = controller.address;
-  console.log("Controller Deployed at " + String(controllerAddress) + ` with splitter ${splitter.address}`);
-
   // deploy Metadata
   const Metadata = await hre.ethers.getContractFactory("Metadata");
   const metadata = await Metadata.deploy();
@@ -107,58 +92,29 @@ const deployContracts = async () => {
 
   // deploy Viper
   const Viper = await ethers.getContractFactory("Viper");
-  const viper = await Viper.deploy(controllerAddress, metadataAddress);
+  const viper = await Viper.deploy(metadataAddress, splitter.address);
   await viper.deployed();
   var viperAddress = viper.address;
-  console.log("Viper Deployed at " + String(viperAddress) + ` with controller ${controllerAddress} and metadata ${metadataAddress}`);
+  console.log("Viper Deployed at " + String(viperAddress) + ` with metadata ${metadataAddress} and splitter ${splitter.address}`);
 
   // deploy BiteByViper
   const BiteByViper = await ethers.getContractFactory("BiteByViper")
-  const biteByViper = await BiteByViper.deploy(controllerAddress, metadataAddress)
+  const biteByViper = await BiteByViper.deploy(viperAddress, metadataAddress)
   await biteByViper.deployed()
   const biteByViperAddress = biteByViper.address
   console.log(`BiteByViper deployed at ${biteByViperAddress} with viperAddress ${viperAddress} and metadataAddress ${metadataAddress}`)
 
   // configure Viper
-  // TODO: remove this once it's been decided
-  // await viper.setBiteByViper(biteByViperAddress);
-  // console.log(`Viper configured with biteByViperAddress ${biteByViperAddress}`)
-
-  // configure Controller
-  await controller.setNFT(viperAddress);
-  console.log(`Controller configured with viper ${viperAddress}`)
-  await controller.setBiteByViper(biteByViperAddress);
-  console.log(`Controller configured with biteByViperAddress ${biteByViperAddress}`)
-
-  let reEntry
-  // deploy reEntry contract for testing
-  if (networkinfo["chainId"] == 12345) {
-    const ReEntry = await ethers.getContractFactory("ReEntry");
-    reEntry = await ReEntry.deploy(controllerAddress);
-    await reEntry.deployed();
-    var reEntryAddress = reEntry.address;
-  }
+  await viper.setBiteByViper(biteByViperAddress);
+  console.log(`Viper configured with biteByViperAddress ${biteByViperAddress}`)
 
 
   // verify contract if network ID is goerli or sepolia
   if (networkinfo["chainId"] == 5 || networkinfo["chainId"] == 1 || networkinfo["chainId"] == 11155111) {
     if (blocksToWaitBeforeVerify > 0) {
       console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
-      await controller.deployTransaction.wait(blocksToWaitBeforeVerify);
+      await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
     }
-
-    try {
-      console.log("Verifying Controller Contract");
-      await hre.run("verify:verify", {
-        address: controllerAddress,
-        constructorArguments: [splitter.address],
-      });
-    } catch (e) {
-      console.log({ e })
-    }
-
-    // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
-    await controller.deployTransaction.wait(blocksToWaitBeforeVerify);
 
     console.log("Verifying Metadata Contract");
     try {
@@ -171,12 +127,12 @@ const deployContracts = async () => {
     }
 
     // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
-    await controller.deployTransaction.wait(blocksToWaitBeforeVerify);
+    await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
     console.log("Verifying Viper Contract");
     try {
       await hre.run("verify:verify", {
         address: viperAddress,
-        constructorArguments: [controllerAddress, metadataAddress],
+        constructorArguments: [metadataAddress, splitter.address],
       });
     } catch (e) {
       console.log({ e })
@@ -184,7 +140,7 @@ const deployContracts = async () => {
 
 
     // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
-    await controller.deployTransaction.wait(blocksToWaitBeforeVerify);
+    await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
     console.log("Verifying BiteByViper Contract");
     try {
       await hre.run("verify:verify", {
@@ -197,7 +153,7 @@ const deployContracts = async () => {
 
   }
 
-  return { viper, controller, metadata, biteByViper, reEntry };
+  return { viper, metadata, biteByViper };
 };
 
 module.exports = {
