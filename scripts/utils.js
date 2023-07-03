@@ -80,7 +80,6 @@ const deployContracts = async () => {
   var networkinfo = await hre.ethers.provider.getNetwork();
   const blocksToWaitBeforeVerify = 0;
 
-  console.log("Start Deployment:");
   const [owner, splitter] = await hre.ethers.getSigners();
 
   // deploy Metadata
@@ -88,73 +87,78 @@ const deployContracts = async () => {
   const metadata = await Metadata.deploy();
   await metadata.deployed();
   var metadataAddress = metadata.address;
-  console.log("Metadata Deployed at " + String(metadataAddress));
+  log("Metadata Deployed at " + String(metadataAddress));
 
   // deploy Viper
   const Viper = await ethers.getContractFactory("Viper");
   const viper = await Viper.deploy(metadataAddress, splitter.address);
   await viper.deployed();
   var viperAddress = viper.address;
-  console.log("Viper Deployed at " + String(viperAddress) + ` with metadata ${metadataAddress} and splitter ${splitter.address}`);
+  log("Viper Deployed at " + String(viperAddress) + ` with metadata ${metadataAddress} and splitter ${splitter.address}`);
 
   // deploy BiteByViper
   const BiteByViper = await ethers.getContractFactory("BiteByViper")
   const biteByViper = await BiteByViper.deploy(viperAddress, metadataAddress)
   await biteByViper.deployed()
   const biteByViperAddress = biteByViper.address
-  console.log(`BiteByViper deployed at ${biteByViperAddress} with viperAddress ${viperAddress} and metadataAddress ${metadataAddress}`)
+  log(`BiteByViper deployed at ${biteByViperAddress} with viperAddress ${viperAddress} and metadataAddress ${metadataAddress}`)
 
   // configure Viper
   await viper.setBiteByViper(biteByViperAddress);
-  console.log(`Viper configured with biteByViperAddress ${biteByViperAddress}`)
+  log(`Viper configured with biteByViperAddress ${biteByViperAddress}`)
 
 
   // verify contract if network ID is goerli or sepolia
   if (networkinfo["chainId"] == 5 || networkinfo["chainId"] == 1 || networkinfo["chainId"] == 11155111) {
     if (blocksToWaitBeforeVerify > 0) {
-      console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
+      log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
       await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
     }
 
-    console.log("Verifying Metadata Contract");
+    log("Verifying Metadata Contract");
     try {
       await hre.run("verify:verify", {
         address: metadataAddress,
         constructorArguments: [],
       });
     } catch (e) {
-      console.log({ e })
+      log({ e })
     }
 
-    // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
+    // log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
     await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
-    console.log("Verifying Viper Contract");
+    log("Verifying Viper Contract");
     try {
       await hre.run("verify:verify", {
         address: viperAddress,
         constructorArguments: [metadataAddress, splitter.address],
       });
     } catch (e) {
-      console.log({ e })
+      log({ e })
     }
 
 
-    // console.log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
+    // log(`Waiting for ${blocksToWaitBeforeVerify} blocks before verifying`)
     await viper.deployTransaction.wait(blocksToWaitBeforeVerify);
-    console.log("Verifying BiteByViper Contract");
+    log("Verifying BiteByViper Contract");
     try {
       await hre.run("verify:verify", {
         address: biteByViperAddress,
         constructorArguments: [viperAddress, metadataAddress],
       });
     } catch (e) {
-      console.log({ e })
+      log({ e })
     }
 
   }
 
   return { viper, metadata, biteByViper };
 };
+
+const log = (message) => {
+  const printLogs = process.env.npm_lifecycle_event !== "test"
+  printLogs && console.log(message)
+}
 
 module.exports = {
   decodeUri,

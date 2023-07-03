@@ -29,7 +29,7 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   address public viperAddress;
   address public metadata;
   uint256 public totalSupply;
-  mapping(address => bool) private _bites;
+  mapping(address => uint256) private _bites;
   mapping(uint256 => address) private _owners;
 
   constructor(address viperAddress_, address metadata_) {
@@ -45,11 +45,12 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
     metadata = metadata_;
   }
 
-  function poison(address from, address to, uint256 tokenId, uint256 length) public {
-    require(msg.sender == viperAddress, "Only Viper can call poison");
-    require(_bites[to] == false, "Already bitten by a Viper");
+  function bite(address from, address to, uint256 tokenId, uint256 length) public {
+    require(msg.sender == viperAddress, "ONLY VIPER");
+    uint256 lastTokenId = getCombinedTokenId(from, tokenId, length - 1);
+    require(_owners[lastTokenId] != to, "YOU JUST BIT THEM");
     uint256 newTokenId = getCombinedTokenId(from, tokenId, length);
-    _bites[to] = true;
+    _bites[to]++;
     _owners[newTokenId] = to;
     totalSupply++;
     emit Transfer(from, to, newTokenId);
@@ -106,7 +107,7 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
   }
 
   function balanceOf(address owner) external view override(IERC721) returns (uint256 balance) {
-    return _bites[owner] ? 1 : 0;
+    return _bites[owner];
   }
 
   function ownerOf(uint256 tokenId) external view override(IERC721) returns (address) {
@@ -144,6 +145,7 @@ contract BiteByViper is Ownable, IERC721, IERC721Metadata, ERC165 {
     return
       interfaceId == type(IERC721).interfaceId ||
       interfaceId == type(IERC721Metadata).interfaceId ||
+      // interfaceId == bytes4(0x49064906) || // IERC4906 MetadataUpdate
       super.supportsInterface(interfaceId);
   }
 }

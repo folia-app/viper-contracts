@@ -1,9 +1,19 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { deployContracts, correctPrice, maxSupply } = require("../scripts/utils.js");
+const { MerkleTree } = require('merkletreejs')
+const { merkleAddresses } = require("../merkleAddresses.js");
 
 describe("Viper Tests", function () {
   this.timeout(50000000);
+
+  // TODO: add tests for the following:
+  // - fallback mint
+  // - metadata event emitted
+  // - bite an address with 0 balanc e(maybe already did?)
+  // - tests to confirm start date is correct date
+  // - check re-entry with new refunding eth logic
+  // - add more pause / start date tests + premint
 
   it("has the correct biteByViper, metadata and splitter", async () => {
     const [owner, splitter] = await ethers.getSigners();
@@ -38,6 +48,15 @@ describe("Viper Tests", function () {
     await expect(viper.connect(addr1).setRoyaltyPercentage(addr1.address, 1))
       .to.be.revertedWith("Ownable: caller is not the owner");
 
+    await expect(viper.connect(addr1).setStartdate(0))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+
+    await expect(viper.connect(addr1).setPremint(0))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+
+    await expect(viper.connect(addr1).setMerkleRoot("0xcedaa7d5476066e2c0ccb625e3e66e2e88db2ec3bdb457c3bd92faf5913cee0a"))
+      .to.be.revertedWith("Ownable: caller is not the owner");
+
 
     await expect(viper.setBiteByViper(addr1.address))
       .to.not.be.reverted;
@@ -56,6 +75,15 @@ describe("Viper Tests", function () {
 
     await expect(viper.setRoyaltyPercentage(addr1.address, 1))
       .to.not.be.reverted;
+
+    await expect(viper.setStartdate(0))
+      .to.not.be.reverted;
+
+    await expect(viper.setPremint(0))
+      .to.not.be.reverted;
+
+    await expect(viper.setMerkleRoot("0xcedaa7d5476066e2c0ccb625e3e66e2e88db2ec3bdb457c3bd92faf5913cee0a"))
+      .to.not.be.reverted;
   })
 
   it("has the correct max supply", async function () {
@@ -69,6 +97,7 @@ describe("Viper Tests", function () {
       { name: "ERC165", id: "0x01ffc9a7", supported: true },
       { name: "ERC721", id: "0x80ac58cd", supported: true },
       { name: "ERC721Metadata", id: "0x5b5e139f", supported: true },
+      { name: "ERC4906MetadataUpdate", id: "0x49064906", supported: true },
       { name: "ERC721Enumerable", id: "0x780e9d63", supported: false },
       { name: "ERC2981", id: "0x2a55205a", supported: true },
       { name: "ERC20", id: "0x36372b07", supported: false },
@@ -90,6 +119,7 @@ describe("Viper Tests", function () {
     // set splitter to metadata address which cannot recive eth
     await viper.setSplitter(metadata.address)
     await viper.setPause(false)
+    await viper.setStartdate(0)
 
     const balanceBefore = await ethers.provider.getBalance(viper.address);
     expect(balanceBefore).to.equal(0);
@@ -129,6 +159,7 @@ describe("Viper Tests", function () {
     const viper = await Viper.deploy(owner.address, owner.address);
     await viper.deployed();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint()']({ value: correctPrice }))
       .to.be.revertedWith("NO BITE BY VIPER ADDRESS");
   });
@@ -163,6 +194,7 @@ describe("Viper Tests", function () {
     const [owner, splitter, addr2, addr3, addr4] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await viper.connect(addr3)['mint()']({ value: correctPrice });
     expect(await viper.ownerOf(1)).to.equal(addr3.address);
     var splitterBalance = await ethers.provider.getBalance(splitter.address);
@@ -173,6 +205,7 @@ describe("Viper Tests", function () {
     const [acct1, acct2, acct3] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     await viper['mint()']({ value: correctPrice });
     const splitter = await viper.splitter();
     const royaltyInfo = await viper.royaltyInfo(1, correctPrice);
@@ -206,9 +239,14 @@ describe("Viper Tests", function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(true);
+    await viper.setStartdate(0)
     await expect(viper.connect(addr1)['mint()']({ value: correctPrice }))
       .to.be.revertedWith("PAUSED");
   });
+
+  //
+  // Mint related tests
+  //
 
   it("succeeds to mint", async function () {
     const [owner] = await ethers.getSigners();
@@ -217,6 +255,7 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("PAUSED")
 
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint()']({ value: correctPrice })).to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, owner.address, 1);
   })
@@ -229,6 +268,7 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("PAUSED")
 
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint(address)'](addr1.address, { value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, addr1.address, 1);
@@ -241,6 +281,7 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("PAUSED")
 
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper.connect(addr1)['mint(uint256)'](1, { value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, addr1.address, 1);
@@ -253,6 +294,7 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("PAUSED")
 
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint(address,uint256)'](addr1.address, 1, { value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, addr1.address, 1);
@@ -262,6 +304,7 @@ describe("Viper Tests", function () {
     const [owner, addr2] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint(uint256)'](5, { value: correctPrice.mul(5) }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, owner.address, 1)
@@ -292,6 +335,7 @@ describe("Viper Tests", function () {
   it("token ID is correctly correlated", async function () {
     const { viper } = await deployContracts();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await viper['mint()']({ value: correctPrice });
     const tokenID = await viper.totalSupply()
     expect(tokenID).to.equal(1);
@@ -301,6 +345,7 @@ describe("Viper Tests", function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     await expect(viper['mint()']({ value: correctPrice }))
       .to.emit(viper, "Transfer")
       .withArgs(ethers.constants.AddressZero, owner.address, 1);
@@ -313,6 +358,7 @@ describe("Viper Tests", function () {
     const [owner] = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await expect(viper['mint()']())
       .to.be.revertedWith("WRONG PRICE");
     await viper.setPrice("0")
@@ -334,18 +380,118 @@ describe("Viper Tests", function () {
     await viper.setPrice(0)
     const maxSupply_ = await viper.MAX_SUPPLY();
     await viper.setPause(false)
+    await viper.setStartdate(0)
+
     for (let i = 0; i < maxSupply_; i++) {
       await viper['mint()']();
     }
 
     await expect(viper['mint()']())
       .to.be.revertedWith("MAX SUPPLY REACHED");
+
+    await expect(viper['mint(uint256)'](3))
+      .to.be.revertedWith("MAX SUPPLY REACHED");
+
   })
+
+  it("almost mints out then tries to mint more than are left", async function () {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+    await viper.setPrice(0)
+    const maxSupply_ = await viper.MAX_SUPPLY();
+    await viper.setPause(false)
+    await viper.setStartdate(0)
+
+    for (let i = 0; i < maxSupply_.sub(1); i++) {
+      await viper['mint()']();
+    }
+    await expect(viper.connect(addr1)['mint(uint256)'](5))
+      .to.not.be.reverted;
+    const balance = await viper.balanceOf(addr1.address);
+    expect(balance).to.equal(1);
+
+    // TODO: make sure that the correct amount of eth was spent
+  })
+
+  it("contract contains correct merkle root", async function () {
+    const [owner, addr1] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+    const tree = new MerkleTree(
+      merkleAddresses.map(ethers.utils.keccak256),
+      ethers.utils.keccak256,
+      { sortPairs: true },
+    );
+
+    const viperRoot = await viper.merkleRoot()
+    const treeRoot = "0x" + tree.getRoot().toString('hex')
+    expect(viperRoot).to.equal(treeRoot);
+  })
+
+  it("correctly mints using allowlist created for tests", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+
+    const addresses = [owner.address, addr1.address]
+
+    const tree = new MerkleTree(
+      addresses.map(ethers.utils.keccak256),
+      ethers.utils.keccak256,
+      { sortPairs: true },
+    );
+
+    const newRoot = "0x" + tree.getRoot().toString('hex')
+    await viper.setMerkleRoot(newRoot)
+
+    const contractRoot = await viper.merkleRoot()
+    expect(contractRoot).to.equal(newRoot);
+
+    const hashedAddress = ethers.utils.keccak256(owner.address);
+    const hexProof = tree.getHexProof(hashedAddress);
+
+    await viper.setPrice(0)
+    await viper.setPause(false)
+    await viper.setPremint(0)
+
+    // function mintAllowList(uint256 quantity, bytes32[] calldata _proof) external payable {
+    await expect(viper.mintAllowList(1, hexProof))
+      .to.emit(viper, "Transfer")
+
+    const balance = await viper.balanceOf(owner.address);
+    expect(balance).to.equal(1);
+
+    const failHashedAddress = ethers.utils.keccak256(addr2.address);
+    const failHexProof = tree.getHexProof(failHashedAddress);
+    await expect(viper.connect(addr2).mintAllowList(1, failHexProof))
+      .to.be.revertedWith("You are not on the allowlist");
+  })
+
+  it("correctly allows minting after start time", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+    // get current block time
+    const blockTime = (await ethers.provider.getBlock('latest')).timestamp;
+
+    // add 1 day to block time
+    const startTime = blockTime + 86400
+    await viper.setStartdate(startTime)
+    await viper.setPause(false)
+    await viper.setPrice(0)
+    await expect(viper['mint()']())
+      .to.be.revertedWith("PAUSED");
+    await ethers.provider.send('evm_increaseTime', [86401])
+    await expect(viper['mint()']()).to.emit(viper, "Transfer")
+      .to.emit(viper, "Transfer")
+  })
+
+  //
+  // TransferFrom tests
+  //
 
   it("can only be transferred by the approved non-owner (marketplace happy path)", async () => {
     const [owner, addr1, addr2] = await ethers.getSigners();
     const { viper, biteByViper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     await viper['mint()']({ value: correctPrice });
     const tokenId = (await viper.totalSupply())
     // first token should be tokenId 1
@@ -365,16 +511,16 @@ describe("Viper Tests", function () {
 
     // transfer from doesn't actually transfer
     // it emits the transfer event on the BiteByViper contract instead
-    // which is how you bite/poison someone
+    // which is how you bite someone
     await expect(tx)
       .to.emit(biteByViper, "Transfer")
       .withArgs(owner.address, addr1.address, combinedTokenId);
 
-    // length should be 1 now since it grows every time someone is bitten/poisoned
+    // length should be 1 now since it grows every time someone is bitten
     const tokenLengthAfterTransfer = await viper.lengths(tokenId)
     expect(tokenLengthAfterTransfer).to.equal(1);
 
-    // viper didn't change owners since only a bite/poison happened
+    // viper didn't change owners since only a bite happened
     const ownerOfToken = await viper.ownerOf(tokenId);
     expect(ownerOfToken).to.equal(owner.address);
 
@@ -391,38 +537,34 @@ describe("Viper Tests", function () {
     expect(newOwnerOfToken).to.equal(addr1.address);
   })
 
-
-  it("poison fails when target owns a viper", async function () {
-    const [owner, splitter, addr3, addr4] = await hre.ethers.getSigners();
-    const { viper } = await deployContracts();
-    await viper.setPause(false);
-    await viper.connect(addr3)['mint()']({ value: correctPrice });
-    const tokenBalance = await viper.balanceOf(addr3.address);
-    const tokenId = await viper.totalSupply()
-    expect(tokenBalance).to.equal(1);
-    await viper.connect(addr4)['mint()']({ value: correctPrice });
-    const tokenBalance2 = await viper.balanceOf(addr4.address);
-    expect(tokenBalance2).to.equal(1);
-
-    await expect(viper.connect(addr3).transferFrom(addr3.address, addr4.address, tokenId))
-      .to.be.revertedWith("Can't poison someone who owns a Viper");
+  it("can't bite yourself", async () => {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper, biteByViper } = await deployContracts();
+    await viper.setPause(false)
+    await viper.setStartdate(0)
+    await viper['mint()']({ value: correctPrice });
+    const tokenId = (await viper.totalSupply())
+    await expect(viper.transferFrom(owner.address, owner.address, tokenId))
+      .to.be.revertedWith("Can't bite yourself");
   })
 
-  it("fails to trigger poison when target has 0 balance", async function () {
+  it("fails to trigger bite when target has 0 balance", async function () {
     const [owner, splitter, addr3, addr4] = await hre.ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false);
+    await viper.setStartdate(0)
     await viper.connect(addr3)['mint()']({ value: correctPrice });
     const tokenId = await viper.totalSupply()
     const emptyAddress = ethers.constants.AddressZero.substring(0, 41) + "1";
     await expect(viper.connect(addr3).transferFrom(addr3.address, emptyAddress, tokenId))
-      .to.be.revertedWith("Can't poison an address with 0 balance");
+      .to.be.revertedWith("Can't bite an address with 0 balance");
   })
 
-  it("poisons someone using transferFrom", async function () {
+  it("bites someone using transferFrom", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
     const { viper, biteByViper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     await viper.connect(addr1)['mint()']({ value: correctPrice });
 
     const ownerOfTokenId1 = await viper.ownerOf(1);
@@ -443,10 +585,11 @@ describe("Viper Tests", function () {
       .to.be.revertedWith("NOT OWNER");
   })
 
-  it("poisons someone using safeTransferFrom", async function () {
+  it("bites someone using safeTransferFrom", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
     const { viper, biteByViper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     await viper.connect(addr1)['mint()']({ value: correctPrice });
 
     const ownerOfTokenId1 = await viper.ownerOf(1);
@@ -471,6 +614,7 @@ describe("Viper Tests", function () {
     const signers = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     let counts = []
     for (let i = 0; i < maxSupply; i++) {
       const signer = signers[i % signers.length]
@@ -488,6 +632,7 @@ describe("Viper Tests", function () {
     const signers = await ethers.getSigners();
     const { viper } = await deployContracts();
     await viper.setPause(false)
+    await viper.setStartdate(0)
     let counts = []
     for (let i = 0; i < (maxSupply / 3); i++) {
       const signer = signers[i % signers.length]

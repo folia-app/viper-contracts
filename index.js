@@ -8,7 +8,10 @@ const MetadataSepolia = require("./ContractsAddress/sepolia-Metadata.json");
 const BiteByViperABI = require("./ContractsAddress/ABI-sepolia-BiteByViper.json");
 const BiteByViperSepolia = require("./ContractsAddress/sepolia-BiteByViper.json");
 
+const { merkleAddresses } = require("./merkleAddresses.js");
+
 module.exports = {
+  merkleAddresses,
   Viper: {
     abi: ViperABI.abi,
     networks: {
