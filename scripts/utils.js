@@ -108,6 +108,16 @@ const deployContracts = async () => {
   log(`Viper configured with biteByViperAddress ${biteByViperAddress}`)
 
 
+  let reEntry
+  // deploy reEntry contract for testing
+  if (networkinfo["chainId"] == 12345) {
+    const ReEntry = await ethers.getContractFactory("ReEntry");
+    reEntry = await ReEntry.deploy(viperAddress);
+    await reEntry.deployed();
+    // var reEntryAddress = reEntry.address;
+  }
+
+
   // verify contract if network ID is goerli or sepolia
   if (networkinfo["chainId"] == 5 || networkinfo["chainId"] == 1 || networkinfo["chainId"] == 11155111) {
     if (blocksToWaitBeforeVerify > 0) {
@@ -152,7 +162,7 @@ const deployContracts = async () => {
 
   }
 
-  return { viper, metadata, biteByViper };
+  return { viper, metadata, biteByViper, reEntry };
 };
 
 const log = (message) => {

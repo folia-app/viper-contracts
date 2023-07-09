@@ -9,6 +9,8 @@ import "@openzeppelin/contracts/token/common/ERC2981.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "erc721a/contracts/extensions/ERC721AQueryable.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+// import reentry guard from openzeppelin
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 /*
 
@@ -28,16 +30,16 @@ Presented by Folia.app
 /// @author @0xJ3lly
 /// @dev standard 721 token and permissions for Minting and Metadata as controlled by external contracts
 
-contract Viper is ERC721AQueryable, Ownable, ERC2981, IERC4906 {
-  bool public paused = true;
+contract Viper is ERC721AQueryable, Ownable, ERC2981, IERC4906, ReentrancyGuard {
+  bool public paused = false;
   uint256 public constant MAX_SUPPLY = 486;
   uint256 public price = 0.055555555555555555 ether;
   address public biteByViper;
   address public metadata;
   address public splitter;
   uint256[MAX_SUPPLY] public lengths;
-  uint256 startdate = 1689184800; // Wed Jul 12 2023 18:00:00 GMT+0000
-  uint256 premint = 1689174000; // Wed Jul 12 2023 15:00:00 GMT+0000
+  uint256 public startdate = 1689098400; // Tue Jul 11 2023 18:00:00 GMT+0000 (8pm CEST Berlin, 7pm London, 2pm NYC, 11am LA)
+  uint256 public premint = 1689087600; // Tue Jul 11 2023 15:00:00 GMT+0000 (5pm CEST Berlin, 4pm London, 11am NYC, 8am LA)
   bytes32 public merkleRoot = 0xcedaa7d5476066e2c0ccb625e3e66e2e88db2ec3bdb457c3bd92faf5913cee0a;
 
   event EthMoved(address indexed to, bool indexed success, bytes returnData, uint256 amount);
@@ -138,7 +140,7 @@ contract Viper is ERC721AQueryable, Ownable, ERC2981, IERC4906 {
   /// @dev mint tokens with rcipient and quantity as parameters
   /// @param recipient the recipient of the NFT
   /// @param quantity the quantity of tokens to mint
-  function internalMint(address recipient, uint256 quantity) internal initialized {
+  function internalMint(address recipient, uint256 quantity) internal initialized nonReentrant {
     require(msg.value >= price * quantity, "WRONG PRICE");
     require(quantity == 1 || quantity == 3 || quantity == 5, "CAN'T MINT BESIDES QUANTITY OF 1, 3 OR 5");
     if (totalSupply() + quantity > MAX_SUPPLY) {
@@ -150,9 +152,10 @@ contract Viper is ERC721AQueryable, Ownable, ERC2981, IERC4906 {
     uint256 payment = quantity * price;
     (bool sent, bytes memory data) = splitter.call{value: payment}("");
     emit EthMoved(splitter, sent, data, payment);
-    _safeMint(recipient, quantity);
 
+    _safeMint(recipient, quantity);
     // call this after _safeMint so totalSupply updates before a re-entry mintcould be called
+    // (UPDATE: re-entry no longer possible anyway)
     if (payment < msg.value) {
       (sent, data) = msg.sender.call{value: msg.value - payment}("");
       emit EthMoved(msg.sender, sent, data, msg.value - payment);

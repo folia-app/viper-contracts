@@ -7,15 +7,7 @@ const { merkleAddresses } = require("../merkleAddresses.js");
 describe("Viper Tests", function () {
   this.timeout(50000000);
 
-  // TODO: add tests for the following:
-  // - fallback mint
-  // - metadata event emitted
-  // - bite an address with 0 balanc e(maybe already did?)
-  // - tests to confirm start date is correct date
-  // - check re-entry with new refunding eth logic
-  // - add more pause / start date tests + premint
-
-  it("has the correct biteByViper, metadata and splitter", async () => {
+  it("has the correct biteByViper, metadata and splitter and start date", async () => {
     const [owner, splitter] = await ethers.getSigners();
     const { viper, biteByViper, metadata } = await deployContracts();
     const biteByViperAddress = await viper.biteByViper();
@@ -24,6 +16,17 @@ describe("Viper Tests", function () {
     expect(metadataAddress).to.equal(metadata.address);
     const splitterAddress = await viper.splitter()
     expect(splitterAddress).to.equal(splitter.address);
+
+    const startDate = await viper.startdate()
+    const actualStartDate = "Tue Jul 11 2023 18:00:00 GMT+0000"
+    const actualStartDateInUnixTime = Date.parse(actualStartDate) / 1000
+    expect(startDate).to.equal(actualStartDateInUnixTime)
+
+    const premint = await viper.premint()
+    const actualPremint = "Tue Jul 11 2023 15:00:00 GMT+0000"
+    const actualPremintInUnixTime = Date.parse(actualPremint) / 1000
+    expect(premint).to.equal(actualPremintInUnixTime)
+
   })
 
   it("onlyOwner functions are really only Owner", async function () {
@@ -245,19 +248,38 @@ describe("Viper Tests", function () {
   });
 
   //
-  // Mint related tests
+  // Minting tests
   //
 
   it("succeeds to mint", async function () {
     const [owner] = await ethers.getSigners();
     const { viper } = await deployContracts();
-    await expect(viper['mint()']({ value: correctPrice })).to.emit(viper, "Transfer")
+    await expect(viper['mint()']({ value: correctPrice }))
+      .to.emit(viper, "Transfer")
       .to.be.revertedWith("PAUSED")
 
     await viper.setPause(false);
     await viper.setStartdate(0)
-    await expect(viper['mint()']({ value: correctPrice })).to.emit(viper, "Transfer")
-      .withArgs(ethers.constants.AddressZero, owner.address, 1);
+    await expect(viper['mint()']({ value: correctPrice }))
+      .to.emit(viper, "Transfer")
+      .withArgs(ethers.constants.AddressZero, owner.address, 1)
+  })
+
+  it("succeeds to mint with fallback method", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+    await viper.setPause(false);
+    await viper.setStartdate(0)
+
+    const correctPrice = await viper.price()
+    // send ether to an address
+    await expect(addr2.sendTransaction({ to: viper.address, value: correctPrice }))
+      .to.emit(viper, "Transfer")
+      .withArgs(ethers.constants.AddressZero, addr2.address, 1)
+
+    const balance = await viper.balanceOf(addr2.address);
+    expect(balance).to.equal(1);
+
   })
 
 
@@ -271,7 +293,7 @@ describe("Viper Tests", function () {
     await viper.setStartdate(0)
     await expect(viper['mint(address)'](addr1.address, { value: correctPrice }))
       .to.emit(viper, "Transfer")
-      .withArgs(ethers.constants.AddressZero, addr1.address, 1);
+      .withArgs(ethers.constants.AddressZero, addr1.address, 1)
   })
 
   it("succeeds to mint with explicit quantity", async function () {
@@ -284,7 +306,7 @@ describe("Viper Tests", function () {
     await viper.setStartdate(0)
     await expect(viper.connect(addr1)['mint(uint256)'](1, { value: correctPrice }))
       .to.emit(viper, "Transfer")
-      .withArgs(ethers.constants.AddressZero, addr1.address, 1);
+      .withArgs(ethers.constants.AddressZero, addr1.address, 1)
   })
 
   it("succeeds to mint with explicit recipient and quantity", async function () {
@@ -297,7 +319,7 @@ describe("Viper Tests", function () {
     await viper.setStartdate(0)
     await expect(viper['mint(address,uint256)'](addr1.address, 1, { value: correctPrice }))
       .to.emit(viper, "Transfer")
-      .withArgs(ethers.constants.AddressZero, addr1.address, 1);
+      .withArgs(ethers.constants.AddressZero, addr1.address, 1)
   })
 
   it("succeeds to batch mint", async function () {
@@ -312,6 +334,7 @@ describe("Viper Tests", function () {
       .withArgs(ethers.constants.AddressZero, owner.address, 3)
       .withArgs(ethers.constants.AddressZero, owner.address, 4)
       .withArgs(ethers.constants.AddressZero, owner.address, 5)
+
 
     await expect(viper.connect(addr2)['mint(uint256)'](3, { value: correctPrice.mul(3) }))
       .to.emit(viper, "Transfer")
@@ -395,22 +418,58 @@ describe("Viper Tests", function () {
   })
 
   it("almost mints out then tries to mint more than are left", async function () {
-    const [owner, addr1] = await ethers.getSigners();
+    const [owner, addr1, addr2] = await ethers.getSigners();
     const { viper } = await deployContracts();
+    const price = await viper.price()
     await viper.setPrice(0)
     const maxSupply_ = await viper.MAX_SUPPLY();
     await viper.setPause(false)
     await viper.setStartdate(0)
 
-    for (let i = 0; i < maxSupply_.sub(1); i++) {
+    const triesToBuy = 5
+    const leftover = 2
+
+    for (let i = 0; i < maxSupply_.sub(leftover); i++) {
       await viper['mint()']();
     }
-    await expect(viper.connect(addr1)['mint(uint256)'](5))
-      .to.not.be.reverted;
-    const balance = await viper.balanceOf(addr1.address);
-    expect(balance).to.equal(1);
+    await viper.setPrice(price)
+    await viper.setSplitter(addr2.address)
 
-    // TODO: make sure that the correct amount of eth was spent
+    const splitter = await viper.splitter()
+    expect(splitter).to.not.equal(addr1.address)
+
+    const cost = price.mul(triesToBuy)
+    const correctCost = price.mul(leftover)
+
+    const ethBalanceBefore = await ethers.provider.getBalance(addr1.address);
+    const splitterBalanceBefore = await ethers.provider.getBalance(splitter);
+
+    // tries to mint 5, but in fact only mints the remaining 2
+    // sends enough money to pay for 5 but is refunded the difference
+    const tx = await viper.connect(addr1)['mint(uint256)'](triesToBuy, { value: cost })
+    const receipt = await tx.wait()
+
+    await expect(tx)
+      .to.emit(viper, "EthMoved")
+      .withArgs(splitter, true, "0x", correctPrice)
+      .withArgs(addr1.address, true, "0x", cost.sub(correctCost))
+
+    const splitterBalanceAfter = await ethers.provider.getBalance(splitter);
+    expect(splitterBalanceAfter.sub(splitterBalanceBefore)).to.equal(correctCost)
+
+    const balance = await viper.balanceOf(addr1.address);
+    expect(balance).to.equal(leftover);
+
+    const gasUsed = receipt.gasUsed
+    const gasPrice = await tx.gasPrice
+    const gasCost = gasUsed.mul(gasPrice)
+
+    const ethBalanceAfter = await ethers.provider.getBalance(addr1.address);
+
+    const ethSpent = ethBalanceBefore.sub(ethBalanceAfter).sub(gasCost)
+    const spent = ethers.utils.formatEther(ethSpent.toString(), 'ether')
+    const correctSpent = ethers.utils.formatEther(correctCost.toString(), 'ether')
+    expect(spent.toString()).to.equal(correctSpent.toString())
   })
 
   it("contract contains correct merkle root", async function () {
@@ -452,7 +511,6 @@ describe("Viper Tests", function () {
     await viper.setPause(false)
     await viper.setPremint(0)
 
-    // function mintAllowList(uint256 quantity, bytes32[] calldata _proof) external payable {
     await expect(viper.mintAllowList(1, hexProof))
       .to.emit(viper, "Transfer")
 
@@ -464,6 +522,45 @@ describe("Viper Tests", function () {
     await expect(viper.connect(addr2).mintAllowList(1, failHexProof))
       .to.be.revertedWith("You are not on the allowlist");
   })
+
+  it("correctly mints using allowlist created for tests after premint period", async function () {
+    const [owner, addr1, addr2] = await ethers.getSigners();
+    const { viper } = await deployContracts();
+    await viper.setPause(false)
+    await viper.setPrice(0)
+
+    const addresses = [owner.address, addr1.address]
+
+    const tree = new MerkleTree(
+      addresses.map(ethers.utils.keccak256),
+      ethers.utils.keccak256,
+      { sortPairs: true },
+    );
+
+    const newRoot = "0x" + tree.getRoot().toString('hex')
+    await viper.setMerkleRoot(newRoot)
+
+    const hashedAddress = ethers.utils.keccak256(owner.address);
+    const hexProof = tree.getHexProof(hashedAddress);
+
+    const now = (await ethers.provider.getBlock('latest')).timestamp;
+    const oneweek = 604800
+    const premint = now + oneweek
+    await viper.setPremint(premint)
+
+    const newpremint = await viper.premint()
+    expect(newpremint).to.equal(premint);
+
+    const timeUntilPremint = premint - now
+    await ethers.provider.send('evm_increaseTime', [timeUntilPremint])
+
+    await expect(viper.mintAllowList(1, hexProof))
+      .to.emit(viper, "Transfer")
+      .withArgs(ethers.constants.AddressZero, owner.address, 1)
+
+  })
+
+
 
   it("correctly allows minting after start time", async function () {
     const [owner, addr1, addr2] = await ethers.getSigners();
@@ -514,7 +611,9 @@ describe("Viper Tests", function () {
     // which is how you bite someone
     await expect(tx)
       .to.emit(biteByViper, "Transfer")
-      .withArgs(owner.address, addr1.address, combinedTokenId);
+      .withArgs(owner.address, addr1.address, combinedTokenId)
+      .to.emit(viper, "MetadataUpdate")
+      .withArgs(tokenId)
 
     // length should be 1 now since it grows every time someone is bitten
     const tokenLengthAfterTransfer = await viper.lengths(tokenId)
@@ -575,6 +674,7 @@ describe("Viper Tests", function () {
     await expect(viper.connect(addr1).transferFrom(addr1.address, addr2.address, 1))
       .to.emit(biteByViper, "Transfer")
       .withArgs(addr1.address, addr2.address, combinedTokenId);
+
 
     // still owner
     const ownerOfTokenId1AfterTransfer = await viper.ownerOf(1);
