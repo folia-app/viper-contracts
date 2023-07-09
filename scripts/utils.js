@@ -5,6 +5,7 @@ const path = require("node:path");
 const fs = require("fs").promises;
 
 const correctPrice = ethers.utils.parseEther("0.055555555555555555");
+const splitterAddress = '0x69Bff8f9292e3D2b436A66D9F2226986aB16ABCF'
 const maxSupply = 486;
 
 const testJson = (tJson) => {
@@ -80,7 +81,7 @@ const deployContracts = async () => {
   var networkinfo = await hre.ethers.provider.getNetwork();
   const blocksToWaitBeforeVerify = 0;
 
-  const [owner, splitter] = await hre.ethers.getSigners();
+  const [owner] = await hre.ethers.getSigners();
 
   // deploy Metadata
   const Metadata = await hre.ethers.getContractFactory("Metadata");
@@ -91,10 +92,10 @@ const deployContracts = async () => {
 
   // deploy Viper
   const Viper = await ethers.getContractFactory("Viper");
-  const viper = await Viper.deploy(metadataAddress, splitter.address);
+  const viper = await Viper.deploy(metadataAddress, splitterAddress);
   await viper.deployed();
   var viperAddress = viper.address;
-  log("Viper Deployed at " + String(viperAddress) + ` with metadata ${metadataAddress} and splitter ${splitter.address}`);
+  log("Viper Deployed at " + String(viperAddress) + ` with metadata ${metadataAddress} and splitter ${splitterAddress}`);
 
   // deploy BiteByViper
   const BiteByViper = await ethers.getContractFactory("BiteByViper")
@@ -141,7 +142,7 @@ const deployContracts = async () => {
     try {
       await hre.run("verify:verify", {
         address: viperAddress,
-        constructorArguments: [metadataAddress, splitter.address],
+        constructorArguments: [metadataAddress, splitterAddress],
       });
     } catch (e) {
       log({ e })
@@ -179,5 +180,6 @@ module.exports = {
   readData,
   testJson,
   correctPrice,
-  maxSupply
+  maxSupply,
+  splitterAddress
 };

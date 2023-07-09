@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
-const { deployContracts, correctPrice, maxSupply } = require("../scripts/utils.js");
+const { deployContracts, correctPrice, maxSupply, splitterAddress } = require("../scripts/utils.js");
 const { MerkleTree } = require('merkletreejs')
 const { merkleAddresses } = require("../merkleAddresses.js");
 
@@ -8,14 +8,13 @@ describe("Viper Tests", function () {
   this.timeout(50000000);
 
   it("has the correct biteByViper, metadata and splitter and start date", async () => {
-    const [owner, splitter] = await ethers.getSigners();
     const { viper, biteByViper, metadata } = await deployContracts();
     const biteByViperAddress = await viper.biteByViper();
     expect(biteByViperAddress).to.equal(biteByViper.address);
     const metadataAddress = await viper.metadata();
     expect(metadataAddress).to.equal(metadata.address);
-    const splitterAddress = await viper.splitter()
-    expect(splitterAddress).to.equal(splitter.address);
+    const contractSplitterAddress = await viper.splitter()
+    expect(contractSplitterAddress).to.equal(splitterAddress);
 
     const startDate = await viper.startdate()
     const actualStartDate = "Tue Jul 11 2023 18:00:00 GMT+0000"
@@ -187,7 +186,7 @@ describe("Viper Tests", function () {
 
 
   it("revert:Splitter not set", async function () {
-    const [owner, splitter] = await hre.ethers.getSigners();
+    const [owner] = await hre.ethers.getSigners();
     const Viper = await ethers.getContractFactory("Viper");
     await expect(Viper.deploy(owner.address, ethers.constants.AddressZero))
       .to.be.reverted;
@@ -200,7 +199,7 @@ describe("Viper Tests", function () {
     await viper.setStartdate(0)
     await viper.connect(addr3)['mint()']({ value: correctPrice });
     expect(await viper.ownerOf(1)).to.equal(addr3.address);
-    var splitterBalance = await ethers.provider.getBalance(splitter.address);
+    var splitterBalance = await ethers.provider.getBalance(splitterAddress);
     expect(splitterBalance == correctPrice);
   });
 
@@ -436,7 +435,7 @@ describe("Viper Tests", function () {
     await viper.setSplitter(addr2.address)
 
     const splitter = await viper.splitter()
-    expect(splitter).to.not.equal(addr1.address)
+    expect(splitter).to.not.equal(splitterAddress)
 
     const cost = price.mul(triesToBuy)
     const correctCost = price.mul(leftover)

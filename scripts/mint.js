@@ -5,10 +5,10 @@ const { initContracts, correctPrice } = require("./utils");
 async function main() {
   const [owner] = await hre.ethers.getSigners();
   const { viper } = await initContracts();
-  const numberOfVipers = 1;
-  for (i = 0; i < numberOfVipers; i++) {
-    await viper.adminMint(owner.address);
-  }
+  const numberOfVipers = 24;
+  // for (i = 0; i < numberOfVipers; i++) {
+  await viper.adminMint(owner.address, numberOfVipers);
+  // }
 }
 
 main()

