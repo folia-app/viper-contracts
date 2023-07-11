@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-// import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-// import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
 /// @title EIP-721 Metadata Update Extension
 interface IERC4906 {
   /// @dev This event emits when the metadata of a token is changed.

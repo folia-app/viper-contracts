@@ -474,6 +474,9 @@ describe("Viper Tests", function () {
   it("contract contains correct merkle root", async function () {
     const [owner, addr1] = await ethers.getSigners();
     const { viper } = await deployContracts();
+
+    // last export of merkleAddresses was 486
+    expect(merkleAddresses.length).to.equal(486)
     const tree = new MerkleTree(
       merkleAddresses.map(ethers.utils.keccak256),
       ethers.utils.keccak256,
