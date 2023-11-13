@@ -67,12 +67,12 @@ module.exports = {
     mainnet: {
       url: 'https://mainnet.infura.io/v3/' + process.env.INFURA_API_KEY,
       accounts: { mnemonic: process.env.deploymentKey },
-      gasPrice: 30_000_000_000,
+      gasPrice: 50_000_000_000,
     },
   },
   gasReporter: {
     currency: "EUR",
-    gasPrice: 30,
+    gasPrice: 42,
     url: "http://localhost:8545",
     coinmarketcap: "38b60711-0559-45f4-8bda-e72f446c8278",
     enabled: true,
